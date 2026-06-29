@@ -8,6 +8,7 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Camera, Image as ImageIcon, Mic, Paperclip, Send, Smile, Sticker } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 const searchSchema = z.object({ c: z.string().uuid().optional() });
 

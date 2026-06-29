@@ -35,8 +35,8 @@ function AuthPage() {
   useEffect(() => { setActiveTab(tab); }, [tab]);
 
   useEffect(() => {
-    if (user && !signupEmail) navigate({ to: redirect as never, replace: true });
-  }, [user, navigate, redirect, signupEmail]);
+    if (user) navigate({ to: redirect as never, replace: true });
+  }, [user, navigate, redirect]);
 
   return (
     <div className="grid min-h-screen md:grid-cols-2">

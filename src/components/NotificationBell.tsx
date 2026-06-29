@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { Bell, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -108,9 +107,9 @@ export function NotificationBell() {
                 </div>
               );
               return n.link ? (
-                <Link key={n.id} to={n.link} onClick={() => { supabase.from("notifications").update({ read: true }).eq("id", n.id); }}>
+                <a key={n.id} href={n.link} onClick={() => { supabase.from("notifications").update({ read: true }).eq("id", n.id); }}>
                   {content}
-                </Link>
+                </a>
               ) : <div key={n.id}>{content}</div>;
             })
           )}

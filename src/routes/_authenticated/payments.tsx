@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_authenticated/payments")({
 
 function Payments() {
   const { gig: gigId, job: jobId } = Route.useSearch();
-  useNavigate();
   const [method, setMethod] = useState("card");
   const [card, setCard] = useState({ number: "", name: "", exp: "", cvc: "" });
   const [loading, setLoading] = useState(false);

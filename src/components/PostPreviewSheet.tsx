@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Comments } from "@/components/Comments";
+import { Reviews } from "@/components/Reviews";
 import { UserAvatar } from "@/components/UserAvatar";
 import { toast } from "sonner";
 

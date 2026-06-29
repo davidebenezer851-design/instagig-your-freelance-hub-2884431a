@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Comments } from "@/components/Comments";
+import { Reviews } from "@/components/Reviews";
 import { UserAvatar } from "@/components/UserAvatar";
 import { toast } from "sonner";
 
@@ -193,6 +194,16 @@ export function PostPreviewSheet({
                 </Button>
               </div>
 
+              <div className="mt-8 border-t border-border pt-6">
+                {profiles?.id && (
+                  <Reviews
+                    subjectId={profiles.id}
+                    gigId={kind === "gig" ? id! : undefined}
+                    jobId={kind === "job" ? id! : undefined}
+                    title="Ratings & Reviews"
+                  />
+                )}
+              </div>
               <div className="mt-8 border-t border-border pt-6">
                 <Comments gigId={kind === "gig" ? id! : undefined} jobId={kind === "job" ? id! : undefined} />
               </div>

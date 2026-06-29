@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bookmark, Briefcase, CreditCard, LogOut, MessageCircle, Plus, Search, Settings, User as UserIcon } from "lucide-react";
+import { Bookmark, Briefcase, CreditCard, LogOut, MessageCircle, Plus, RefreshCw, Search, Settings, User as UserIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +24,19 @@ export function Navbar() {
     qc.clear();
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
+  }
+
+  async function switchRole() {
+    if (!user || !role) return;
+    const next = role === "freelancer" ? "client" : "freelancer";
+    const t = toast.loading(`Switching to ${next}…`);
+    await supabase.from("user_roles").delete().eq("user_id", user.id);
+    const { error } = await supabase.from("user_roles").insert({ user_id: user.id, role: next });
+    toast.dismiss(t);
+    if (error) { toast.error(error.message); return; }
+    await qc.invalidateQueries({ queryKey: ["user-role", user.id] });
+    toast.success(`You're now a ${next}`);
+    navigate({ to: next === "freelancer" ? "/freelancer" : "/client" });
   }
 
   return (
@@ -81,6 +95,11 @@ export function Navbar() {
                   )}
                   {role !== "freelancer" && (
                     <DropdownMenuItem asChild><Link to="/post-job"><Plus className="mr-2 h-4 w-4" />Post a Job</Link></DropdownMenuItem>
+                  )}
+                  {role && (
+                    <DropdownMenuItem onClick={switchRole}>
+                      <RefreshCw className="mr-2 h-4 w-4" />Switch to {role === "freelancer" ? "Client" : "Freelancer"}
+                    </DropdownMenuItem>
                   )}
                   <DropdownMenuItem asChild><Link to="/payments"><CreditCard className="mr-2 h-4 w-4" />Payments</Link></DropdownMenuItem>
                   <DropdownMenuSeparator />

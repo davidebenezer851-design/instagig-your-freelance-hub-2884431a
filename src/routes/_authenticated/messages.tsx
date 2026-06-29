@@ -8,6 +8,7 @@ import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Camera, Image as ImageIcon, Mic, Paperclip, Send, Smile, Sticker } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
 
 const searchSchema = z.object({ c: z.string().uuid().optional() });
 
@@ -115,7 +116,8 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
     });
     const channel = supabase.channel(`chat:${convId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {
-        setMessages((prev) => [...prev, payload.new as Message]);
+        const m = payload.new as Message;
+        setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
       })
       .on("broadcast", { event: "typing" }, (payload) => {
         const fromId = (payload.payload as { user_id?: string })?.user_id;
@@ -142,9 +144,27 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || !user) return;
     setBody("");
-    await supabase.from("messages").insert({ conversation_id: convId, sender_id: user!.id, body: trimmed });
+    // Optimistic
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: Message = { id: tempId, sender_id: user.id, body: trimmed, created_at: new Date().toISOString() };
+    setMessages((prev) => [...prev, optimistic]);
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ conversation_id: convId, sender_id: user.id, body: trimmed })
+      .select("id,sender_id,body,created_at")
+      .single();
+    if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast.error(error.message || "Failed to send");
+      setBody(trimmed);
+      return;
+    }
+    setMessages((prev) => {
+      const without = prev.filter((m) => m.id !== tempId);
+      return without.some((m) => m.id === data.id) ? without : [...without, data as Message];
+    });
     await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convId);
   }
 

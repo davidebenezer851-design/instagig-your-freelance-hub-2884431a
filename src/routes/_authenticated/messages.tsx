@@ -116,7 +116,8 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
     });
     const channel = supabase.channel(`chat:${convId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {
-        setMessages((prev) => [...prev, payload.new as Message]);
+        const m = payload.new as Message;
+        setMessages((prev) => prev.some((x) => x.id === m.id) ? prev : [...prev, m]);
       })
       .on("broadcast", { event: "typing" }, (payload) => {
         const fromId = (payload.payload as { user_id?: string })?.user_id;

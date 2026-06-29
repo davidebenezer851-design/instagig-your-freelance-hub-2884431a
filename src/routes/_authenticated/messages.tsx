@@ -144,9 +144,27 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
 
   async function send(text: string) {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed || !user) return;
     setBody("");
-    await supabase.from("messages").insert({ conversation_id: convId, sender_id: user!.id, body: trimmed });
+    // Optimistic
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: Message = { id: tempId, sender_id: user.id, body: trimmed, created_at: new Date().toISOString() };
+    setMessages((prev) => [...prev, optimistic]);
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({ conversation_id: convId, sender_id: user.id, body: trimmed })
+      .select("id,sender_id,body,created_at")
+      .single();
+    if (error) {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast.error(error.message || "Failed to send");
+      setBody(trimmed);
+      return;
+    }
+    setMessages((prev) => {
+      const without = prev.filter((m) => m.id !== tempId);
+      return without.some((m) => m.id === data.id) ? without : [...without, data as Message];
+    });
     await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convId);
   }
 

@@ -195,6 +195,16 @@ export function PostPreviewSheet({
               </div>
 
               <div className="mt-8 border-t border-border pt-6">
+                {profiles?.id && (
+                  <Reviews
+                    subjectId={profiles.id}
+                    gigId={kind === "gig" ? id! : undefined}
+                    jobId={kind === "job" ? id! : undefined}
+                    title="Ratings & Reviews"
+                  />
+                )}
+              </div>
+              <div className="mt-8 border-t border-border pt-6">
                 <Comments gigId={kind === "gig" ? id! : undefined} jobId={kind === "job" ? id! : undefined} />
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,10 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useWallet, formatMoney, type WalletTx } from "@/hooks/useWallet";
-import { ArrowDownToLine, ArrowUpFromLine, CreditCard, Building2, Wallet as WalletIcon, Search, ShoppingBag, Sparkles, Zap, ShieldCheck } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, CreditCard, Building2, Wallet as WalletIcon, Search, ShoppingBag, Sparkles, Zap, ShieldCheck, Crown, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 
+const searchSchema = z.object({
+  upgrade: z.enum(["pro", "business"]).optional(),
+  gig: z.string().optional(),
+  price: z.coerce.number().optional(),
+  title: z.string().optional(),
+});
+
 export const Route = createFileRoute("/_authenticated/wallet")({
+  validateSearch: searchSchema,
   head: () => ({ meta: [{ title: "Wallet — InstaGIG" }] }),
   component: WalletPage,
 });
@@ -23,19 +32,51 @@ const SANDBOX = [
   { id: "verify-pro", name: "Verified Pro Badge", price: 25, icon: ShieldCheck, desc: "Stand out with InstaGIG identity verification." },
 ];
 
+const UPGRADES: Record<string, { name: string; price: number; perks: string[] }> = {
+  pro: { name: "InstaGIG Pro (monthly)", price: 12, perks: ["Unlimited gigs", "Boosted visibility", "3% service fee"] },
+  business: { name: "InstaGIG Business (monthly)", price: 49, perks: ["Team workspaces", "Custom invoices", "Dedicated manager"] },
+};
+
+type LinkedMethod = { id: string; brand: "stripe" | "paypal" | "card" | "bank"; label: string; sub: string };
+
+function loadMethods(): LinkedMethod[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem("instagig:methods") ?? "[]"); } catch { return []; }
+}
+
 function WalletPage() {
   const { balance, currency, transactions, mutate } = useWallet();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const [fundOpen, setFundOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [methods, setMethods] = useState<LinkedMethod[]>([]);
+  const [connectOpen, setConnectOpen] = useState<null | "stripe" | "paypal" | "card" | "bank">(null);
+  const [confirm, setConfirm] = useState<{ amount: number; description: string } | null>(null);
+
+  useEffect(() => { setMethods(loadMethods()); }, []);
+  useEffect(() => {
+    if (search.upgrade && UPGRADES[search.upgrade]) {
+      const u = UPGRADES[search.upgrade];
+      setConfirm({ amount: u.price, description: u.name });
+    } else if (search.gig && search.price) {
+      setConfirm({ amount: Number(search.price), description: `Order: ${search.title ?? "Gig"}` });
+    }
+  }, [search.upgrade, search.gig, search.price, search.title]);
+
+  function saveMethods(next: LinkedMethod[]) {
+    setMethods(next);
+    if (typeof window !== "undefined") localStorage.setItem("instagig:methods", JSON.stringify(next));
+  }
 
   const filtered = useMemo(
     () => transactions.filter((t) => `${t.type} ${t.description ?? ""} ${t.reference ?? ""}`.toLowerCase().includes(query.toLowerCase())),
     [transactions, query]
   );
 
-  async function buy(item: typeof SANDBOX[number]) {
-    if (item.price > balance) { toast.error("Insufficient Balance — Please Fund Your Wallet"); return; }
+  async function buy(item: { name: string; price: number }) {
+    if (item.price > balance) { toast.error("Insufficient Balance — Please Fund Your Wallet"); setFundOpen(true); return; }
     await mutate.mutateAsync({ amount: item.price, type: "purchase", description: item.name });
     toast.success(`Purchased ${item.name}`);
   }
@@ -47,12 +88,12 @@ function WalletPage() {
         <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="min-w-0">
             <h1 className="font-display text-2xl font-bold md:text-3xl">Wallet</h1>
-            <p className="text-sm text-muted-foreground">Fund your account, pay for services, and track every transaction.</p>
+            <p className="text-sm text-muted-foreground">Fund your account, connect payout methods, and track every transaction.</p>
           </div>
           <Badge variant="secondary" className="gap-1 px-3 py-1.5 text-sm"><WalletIcon className="h-3.5 w-3.5" /> {currency}</Badge>
         </header>
 
-        {/* Main balance card */}
+        {/* Balance card */}
         <Card className="relative overflow-hidden border-primary/30 bg-gradient-to-br from-card via-card to-primary/10 shadow-[var(--shadow-glow)]">
           <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-primary/30 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
@@ -61,9 +102,7 @@ function WalletPage() {
               <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
                 <WalletIcon className="h-3.5 w-3.5" /> Available Balance
               </div>
-              <div className="mt-2 font-display text-4xl font-black tabular-nums text-foreground md:text-6xl">
-                {formatMoney(balance, currency)}
-              </div>
+              <div className="mt-2 font-display text-4xl font-black tabular-nums text-foreground md:text-6xl">{formatMoney(balance, currency)}</div>
               <div className="mt-1 text-xs text-muted-foreground">InstaGIG Wallet · Instant settlement</div>
             </div>
             <div className="flex flex-col gap-2 self-end md:items-end">
@@ -76,9 +115,78 @@ function WalletPage() {
           </CardContent>
         </Card>
 
-        {/* Purchase sandbox */}
+        {/* Linked payment methods */}
         <section>
-          <h2 className="mb-3 font-display text-lg font-bold">Try your balance — Purchase Sandbox</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-lg font-bold">Linked Payment Methods</h2>
+              <p className="text-xs text-muted-foreground">Connect a way to fund your wallet or get paid out.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { k: "stripe" as const, name: "Stripe", desc: "Card payouts worldwide", icon: CreditCard },
+              { k: "paypal" as const, name: "PayPal", desc: "Send & receive in 200+ countries", icon: WalletIcon },
+              { k: "card" as const, name: "Debit / Credit Card", desc: "Top up instantly", icon: CreditCard },
+              { k: "bank" as const, name: "Bank Transfer", desc: "ACH / SEPA payouts", icon: Building2 },
+            ].map((m) => {
+              const linked = methods.find((x) => x.brand === m.k);
+              return (
+                <Card key={m.k} className="flex flex-col">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/15 text-primary"><m.icon className="h-4 w-4" /></div>
+                      <CardTitle className="text-base">{m.name}</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-1 flex-col justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">{linked ? linked.sub : m.desc}</p>
+                    {linked ? (
+                      <div className="flex items-center justify-between">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary"><Check className="h-3.5 w-3.5" /> Connected</span>
+                        <Button size="sm" variant="ghost" onClick={() => saveMethods(methods.filter((x) => x.id !== linked.id))}>Disconnect</Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="secondary" onClick={() => setConnectOpen(m.k)}><Plus className="h-3.5 w-3.5" /> Connect</Button>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Upgrade plans */}
+        <section>
+          <h2 className="mb-3 font-display text-lg font-bold">Upgrade your plan</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Object.entries(UPGRADES).map(([k, u]) => (
+              <Card key={k} className="border-primary/20">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary/15 text-primary"><Crown className="h-4 w-4" /></div>
+                    <CardTitle className="text-base">{u.name}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <ul className="space-y-1 text-xs text-muted-foreground">
+                    {u.perks.map((p) => <li key={p} className="flex items-start gap-1.5"><Check className="mt-0.5 h-3 w-3 text-primary" />{p}</li>)}
+                  </ul>
+                  <div className="flex items-center justify-between">
+                    <span className="font-display text-xl font-bold tabular-nums">{formatMoney(u.price, currency)}</span>
+                    <Button size="sm" onClick={() => setConfirm({ amount: u.price, description: u.name })} disabled={mutate.isPending}>
+                      <ShoppingBag className="h-3.5 w-3.5" /> Pay with Wallet
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Sandbox */}
+        <section>
+          <h2 className="mb-3 font-display text-lg font-bold">Purchase Sandbox</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {SANDBOX.map((it) => (
               <Card key={it.id} className="flex flex-col">
@@ -148,6 +256,41 @@ function WalletPage() {
           setWithdrawOpen(false);
         } catch (e) { toast.error((e as Error).message); }
       }} />
+
+      <ConnectModal open={connectOpen} onOpenChange={(o) => !o && setConnectOpen(null)} brand={connectOpen} onConfirm={(label, sub) => {
+        if (!connectOpen) return;
+        saveMethods([...methods, { id: crypto.randomUUID(), brand: connectOpen, label, sub }]);
+        toast.success(`${label} connected`);
+        setConnectOpen(null);
+      }} />
+
+      <Dialog open={!!confirm} onOpenChange={(o) => { if (!o) { setConfirm(null); navigate({ search: {} }); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ShoppingBag className="h-4 w-4 text-primary" /> Confirm purchase</DialogTitle>
+            <DialogDescription>{confirm?.description}</DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-display text-2xl font-bold tabular-nums">{formatMoney(confirm?.amount ?? 0, currency)}</span></div>
+            <div className="mt-2 flex items-center justify-between text-xs"><span className="text-muted-foreground">Wallet balance</span><span className="tabular-nums">{formatMoney(balance, currency)}</span></div>
+            {confirm && confirm.amount > balance && <p className="mt-3 text-xs text-destructive">Insufficient balance. Fund your wallet to continue.</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setConfirm(null); navigate({ search: {} }); }}>Cancel</Button>
+            {confirm && confirm.amount > balance ? (
+              <Button onClick={() => { setFundOpen(true); }}>Top up wallet</Button>
+            ) : (
+              <Button onClick={async () => {
+                if (!confirm) return;
+                await mutate.mutateAsync({ amount: confirm.amount, type: "purchase", description: confirm.description });
+                toast.success(`Paid ${formatMoney(confirm.amount, currency)} for ${confirm.description}`);
+                setConfirm(null);
+                navigate({ search: {} });
+              }}>Pay with Wallet</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -196,7 +339,7 @@ function FundModal({ open, onOpenChange, onConfirm }: { open: boolean; onOpenCha
           <div>
             <label className="text-xs font-semibold text-muted-foreground">Payment Method</label>
             <div className="mt-2 grid grid-cols-3 gap-2">
-              {[{ k: "Credit Card", i: CreditCard }, { k: "Bank Transfer", i: Building2 }, { k: "Virtual Account", i: WalletIcon }].map(({ k, i: I }) => (
+              {[{ k: "Credit Card", i: CreditCard }, { k: "PayPal", i: WalletIcon }, { k: "Bank Transfer", i: Building2 }].map(({ k, i: I }) => (
                 <button key={k} type="button" onClick={() => setMethod(k)}
                   className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition ${method === k ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/40"}`}>
                   <I className="h-3.5 w-3.5" />{k}
@@ -233,6 +376,45 @@ function WithdrawModal({ open, onOpenChange, balance, currency, onConfirm }: { o
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={() => n > 0 && !over && onConfirm(n)} disabled={!(n > 0) || over}>Withdraw</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ConnectModal({ open, onOpenChange, brand, onConfirm }: { open: boolean; onOpenChange: (b: boolean) => void; brand: "stripe" | "paypal" | "card" | "bank" | null; onConfirm: (label: string, sub: string) => void }) {
+  const [v1, setV1] = useState("");
+  const [v2, setV2] = useState("");
+  useEffect(() => { if (open) { setV1(""); setV2(""); } }, [open]);
+  if (!brand) return null;
+  const cfg = {
+    stripe: { title: "Connect Stripe", l1: "Stripe account email", l2: "Account ID (acct_…)", btn: "Connect Stripe", label: "Stripe", sub: (e: string) => `Account ${e || "linked"}` },
+    paypal: { title: "Connect PayPal", l1: "PayPal email", l2: "", btn: "Connect PayPal", label: "PayPal", sub: (e: string) => e ? e : "Account linked" },
+    card: { title: "Add Card", l1: "Card number", l2: "Cardholder name", btn: "Save Card", label: "Card", sub: (n: string) => `•• ${n.slice(-4) || "0000"}` },
+    bank: { title: "Add Bank Account", l1: "Account number", l2: "Routing / IBAN", btn: "Link Bank", label: "Bank", sub: (n: string) => `Acct ending ${n.slice(-4) || "0000"}` },
+  }[brand];
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{cfg.title}</DialogTitle>
+          <DialogDescription>Connect a payment method to your InstaGIG wallet.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground">{cfg.l1}</label>
+            <Input value={v1} onChange={(e) => setV1(e.target.value)} className="mt-1" />
+          </div>
+          {cfg.l2 && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground">{cfg.l2}</label>
+              <Input value={v2} onChange={(e) => setV2(e.target.value)} className="mt-1" />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button disabled={!v1} onClick={() => onConfirm(cfg.label, cfg.sub(v1))}>{cfg.btn}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

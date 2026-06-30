@@ -377,6 +377,8 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          read_at: string | null
+          reply_to: string | null
           sender_id: string
         }
         Insert: {
@@ -388,6 +390,8 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
+          read_at?: string | null
+          reply_to?: string | null
           sender_id: string
         }
         Update: {
@@ -399,6 +403,8 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
+          read_at?: string | null
+          reply_to?: string | null
           sender_id?: string
         }
         Relationships: [
@@ -407,6 +413,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]
@@ -652,6 +665,66 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json
+          reference: string | null
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          reference?: string | null
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json
+          reference?: string | null
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          currency: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          currency?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          currency?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []

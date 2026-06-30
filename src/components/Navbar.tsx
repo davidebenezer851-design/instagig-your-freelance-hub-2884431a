@@ -79,7 +79,7 @@ export function Navbar() {
             <>
               <WalletChip />
               <NotificationBell />
-              <Link to="/messages">
+              <Link to="/messages" data-tour="messages">
                 <Button variant="ghost" size="icon" aria-label="Messages">
                   <MessageCircle className="h-4 w-4" />
                 </Button>
@@ -91,7 +91,7 @@ export function Navbar() {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full p-0 overflow-hidden ring-2 ring-primary/40 ring-offset-2 ring-offset-background transition hover:ring-primary/70 hover:shadow-[0_0_18px_-4px_var(--lemon)]">
+                  <Button data-tour="profile" variant="secondary" size="icon" className="rounded-full p-0 overflow-hidden ring-2 ring-primary/40 ring-offset-2 ring-offset-background transition hover:ring-primary/70 hover:shadow-[0_0_18px_-4px_var(--lemon)]">
                     <UserAvatar userId={user.id} size={36} />
                   </Button>
                 </DropdownMenuTrigger>
@@ -115,7 +115,6 @@ export function Navbar() {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem asChild><Link to="/invoices"><FileText className="mr-2 h-4 w-4" />Invoices</Link></DropdownMenuItem>
-                  <DropdownMenuItem asChild><Link to="/payments"><CreditCard className="mr-2 h-4 w-4" />Payments</Link></DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}><LogOut className="mr-2 h-4 w-4" />Sign out</DropdownMenuItem>
                 </DropdownMenuContent>

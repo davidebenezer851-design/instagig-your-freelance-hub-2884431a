@@ -33,8 +33,8 @@ const tiers = [
     blurb: "Stand out. Get paid faster.",
     perks: ["Unlimited gigs & proposals", "Boosted search visibility", "Branded invoices + auto reminders", "3% service fee", "Priority support"],
     cta: "Go Pro",
-    to: "/payments" as const,
-    search: { plan: "pro" },
+    to: "/wallet" as const,
+    search: { upgrade: "pro" },
     featured: true,
   },
   {
@@ -43,8 +43,8 @@ const tiers = [
     blurb: "For agencies & hiring teams.",
     perks: ["Team workspaces", "Hire & escrow at scale", "Custom invoice templates", "Dedicated account manager", "API access"],
     cta: "Contact sales",
-    to: "/payments" as const,
-    search: { plan: "business" },
+    to: "/wallet" as const,
+    search: { upgrade: "business" },
     featured: false,
   },
 ];

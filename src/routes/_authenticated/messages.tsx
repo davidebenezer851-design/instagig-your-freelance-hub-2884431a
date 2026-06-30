@@ -389,18 +389,19 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
         </div>
       </form>
 
-      <ImageEditor
-        file={editing}
-        open={!!editing}
-        onCancel={() => setEditing(null)}
-        onConfirm={(blob) => {
-          if (editing) {
+      {editing && (
+        <ImageEditor
+          key={editing.name + editing.size + editing.lastModified}
+          file={editing}
+          open={!!editing}
+          onCancel={() => setEditing(null)}
+          onConfirm={(blob) => {
             const name = editing.name || `photo-${Date.now()}.jpg`;
             addPendingFile(blob, name, blob.type || "image/jpeg");
-          }
-          setEditing(null);
-        }}
-      />
+            setEditing(null);
+          }}
+        />
+      )}
     </>
   );
 }

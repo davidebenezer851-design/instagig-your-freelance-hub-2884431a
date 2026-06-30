@@ -199,3 +199,30 @@
   0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
   40% { transform: translateY(-4px); opacity: 1; }
 }
+
+/* Wallet chip pulse */
+@keyframes wallet-pulse {
+  0% { box-shadow: 0 0 0 0 oklch(0.92 0.21 115 / 0.55); }
+  100% { box-shadow: 0 0 0 14px oklch(0.92 0.21 115 / 0); }
+}
+.wallet-pulse { animation: wallet-pulse 0.7s ease-out; }
+
+/* Swipe-to-reply hint */
+.swipe-row { touch-action: pan-y; }
+.swipe-reply-hint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.swipe-row.is-dragging .swipe-reply-hint { opacity: 1; }
+

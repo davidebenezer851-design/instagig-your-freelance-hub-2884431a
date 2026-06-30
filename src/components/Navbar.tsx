@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bookmark, Briefcase, CreditCard, FileText, LogOut, MessageCircle, Plus, RefreshCw, Search, Settings, User as UserIcon } from "lucide-react";
+import { Bookmark, Briefcase, CreditCard, FileText, LogOut, MessageCircle, Plus, RefreshCw, Search, Settings, User as UserIcon, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserAvatar } from "@/components/UserAvatar";
+import { WalletChip } from "@/components/WalletChip";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 
 export function Navbar() {
   const { user } = useAuth();
@@ -75,34 +77,38 @@ export function Navbar() {
           </Link>
           {user ? (
             <>
+              <WalletChip />
               <NotificationBell />
               <Link to="/messages">
                 <Button variant="ghost" size="icon" aria-label="Messages">
                   <MessageCircle className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/saved">
+              <Link to="/saved" className="hidden sm:inline-flex">
                 <Button variant="ghost" size="icon" aria-label="Saved">
                   <Bookmark className="h-4 w-4" />
                 </Button>
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="secondary" size="icon" className="rounded-full p-0 overflow-hidden">
+                  <Button variant="secondary" size="icon" className="rounded-full p-0 overflow-hidden ring-2 ring-primary/40 ring-offset-2 ring-offset-background transition hover:ring-primary/70 hover:shadow-[0_0_18px_-4px_var(--lemon)]">
                     <UserAvatar userId={user.id} size={36} />
                   </Button>
                 </DropdownMenuTrigger>
+
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuItem asChild><Link to="/dashboard"><Briefcase className="mr-2 h-4 w-4" />Dashboard</Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link to="/profile"><UserIcon className="mr-2 h-4 w-4" />Profile</Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link to="/settings"><Settings className="mr-2 h-4 w-4" />Settings</Link></DropdownMenuItem>
                   <DropdownMenuItem asChild><Link to="/saved"><Bookmark className="mr-2 h-4 w-4" />Saved</Link></DropdownMenuItem>
+                  <DropdownMenuItem asChild><Link to="/wallet"><Wallet className="mr-2 h-4 w-4" />Wallet</Link></DropdownMenuItem>
                   {role !== "client" && (
                     <DropdownMenuItem asChild><Link to="/post-gig"><Plus className="mr-2 h-4 w-4" />Post a Gig</Link></DropdownMenuItem>
                   )}
                   {role !== "freelancer" && (
                     <DropdownMenuItem asChild><Link to="/post-job"><Plus className="mr-2 h-4 w-4" />Post a Job</Link></DropdownMenuItem>
                   )}
+
                   {role && (
                     <DropdownMenuItem onClick={switchRole}>
                       <RefreshCw className="mr-2 h-4 w-4" />Switch to {role === "freelancer" ? "Client" : "Freelancer"}

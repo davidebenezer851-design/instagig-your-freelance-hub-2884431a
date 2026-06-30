@@ -10,6 +10,7 @@ import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, P
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ImageEditor } from "@/components/ImageEditor";
 import { useIsMobile } from "@/hooks/use-mobile";
 

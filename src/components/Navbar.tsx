@@ -55,7 +55,7 @@ export function Navbar() {
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">
-          <Link to="/gigs" className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground [&.active]:text-primary" activeProps={{ className: "active" }}>
+          <Link to="/gigs" data-tour="browse" className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground [&.active]:text-primary" activeProps={{ className: "active" }}>
             Browse Gigs
           </Link>
           <Link to="/jobs" className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground [&.active]:text-primary" activeProps={{ className: "active" }}>

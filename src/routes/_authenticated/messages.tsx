@@ -489,6 +489,7 @@ function SwipeableMessage({ children, onReply, mine }: { children: React.ReactNo
 
 function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replied: Message | null }) {
   const isImg = m.attachment_type?.startsWith("image/");
+  const isAudio = m.attachment_type?.startsWith("audio/");
   return (
     <div className={`max-w-[85%] sm:max-w-[70%] overflow-hidden rounded-2xl text-sm shadow-sm ${mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card text-foreground rounded-bl-sm"}`}>
       {replied && (
@@ -501,7 +502,12 @@ function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replie
           <img src={m.attachment_url} alt={m.attachment_name ?? "image"} className="max-h-80 w-full object-cover" />
         </a>
       )}
-      {m.attachment_url && !isImg && (
+      {m.attachment_url && isAudio && (
+        <div className="flex items-center gap-2 p-2">
+          <audio src={m.attachment_url} controls className="h-9 w-56 max-w-full" />
+        </div>
+      )}
+      {m.attachment_url && !isImg && !isAudio && (
         <a href={m.attachment_url} target="_blank" rel="noreferrer"
            className={`flex items-center gap-2 ${m.body ? `border-b ${mine ? "border-primary-foreground/20" : "border-border"}` : ""} p-3`}>
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-black/20"><FileIcon className="h-5 w-5" /></div>

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,22 +7,105 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Banknote, CheckCircle2, CreditCard, Lock, ShieldCheck, Star, Wallet, Zap } from "lucide-react";
+import { Banknote, CheckCircle2, CreditCard, Lock, ShieldCheck, Sparkles, Star, Wallet, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { useWallet, formatMoney } from "@/hooks/useWallet";
 
-type Search = { gig?: string; job?: string };
+type Search = { gig?: string; job?: string; plan?: "pro" | "business" };
 
 export const Route = createFileRoute("/_authenticated/payments")({
   head: () => ({ meta: [{ title: "Checkout — InstaGIG" }] }),
   validateSearch: (s: Record<string, unknown>): Search => ({
     gig: typeof s.gig === "string" ? s.gig : undefined,
     job: typeof s.job === "string" ? s.job : undefined,
+    plan: s.plan === "pro" || s.plan === "business" ? s.plan : undefined,
   }),
   component: Payments,
 });
 
+function PlanCheckout({ plan }: { plan: "pro" | "business" }) {
+  const navigate = useNavigate();
+  const { balance, currency, mutate } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const price = plan === "pro" ? 12 : 99;
+  const name = plan === "pro" ? "InstaGIG Pro" : "InstaGIG Business";
+
+  async function subscribe() {
+    if (price > balance) { toast.error("Insufficient wallet balance — fund your wallet first"); return; }
+    setLoading(true);
+    try {
+      await mutate.mutateAsync({ amount: price, type: "purchase", description: `${name} — monthly subscription` });
+      toast.success(`Welcome to ${name}!`);
+      navigate({ to: "/dashboard" });
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-8 md:grid-cols-[1fr_380px] md:px-6 md:py-12">
+        <div>
+          <Link to="/pricing" className="text-xs text-muted-foreground hover:text-foreground">← Back to pricing</Link>
+          <h1 className="mt-2 font-display text-3xl font-bold md:text-4xl">Upgrade to {name}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Pay securely with your InstaGIG Wallet. Cancel anytime from Settings.</p>
+
+          <div className="mt-6 rounded-2xl border border-border bg-card p-5">
+            <div className="mb-4 flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> What you get</div>
+            <ul className="space-y-2 text-sm">
+              {(plan === "pro"
+                ? ["Unlimited gigs & proposals", "Boosted search visibility", "Branded invoices + auto-reminders", "Reduced 3% service fee", "Priority chat support"]
+                : ["Team workspaces (up to 10 seats)", "Hire & escrow at scale", "Custom invoice templates & API", "Dedicated account manager", "SSO & audit logs"]
+              ).map((p) => (
+                <li key={p} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{p}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Wallet Balance</div>
+                <div className="font-display text-2xl font-bold tabular-nums">{formatMoney(balance, currency)}</div>
+              </div>
+              <Link to="/wallet"><Button variant="secondary" size="sm"><Wallet className="h-4 w-4" /> Top up</Button></Link>
+            </div>
+          </div>
+        </div>
+
+        <aside className="rounded-2xl border border-border bg-card p-5 md:sticky md:top-20 md:h-fit">
+          <div className="font-display text-sm font-semibold">Order summary</div>
+          <div className="mt-3 flex items-baseline justify-between">
+            <span className="text-sm text-muted-foreground">{name}</span>
+            <span className="font-display text-2xl font-bold tabular-nums">${price}<span className="text-sm text-muted-foreground">/mo</span></span>
+          </div>
+          <div className="mt-4 space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
+            <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">${price}.00</span></div>
+            <div className="flex justify-between"><span>Tax</span><span className="tabular-nums">$0.00</span></div>
+            <div className="mt-2 flex items-baseline justify-between border-t border-border pt-2 text-sm font-semibold text-foreground">
+              <span>Total due today</span><span className="tabular-nums">${price}.00</span>
+            </div>
+          </div>
+          <Button className="mt-5 w-full font-semibold" onClick={subscribe} disabled={loading || price > balance}>
+            {loading ? "Processing…" : price > balance ? "Insufficient balance" : `Pay $${price} from Wallet`}
+          </Button>
+          <p className="mt-3 flex items-center justify-center gap-1 text-[10px] text-muted-foreground"><Lock className="h-3 w-3" /> Secured by InstaGIG escrow</p>
+        </aside>
+      </main>
+      <Footer />
+    </div>
+  );
+}
+
 function Payments() {
-  const { gig: gigId, job: jobId } = Route.useSearch();
+  const { gig: gigId, job: jobId, plan } = Route.useSearch();
+  if (plan) return <PlanCheckout plan={plan} />;
+  // Original gig/job checkout below
+  return <GigJobCheckout gigId={gigId} jobId={jobId} />;
+}
+
+function GigJobCheckout({ gigId, jobId }: { gigId?: string; jobId?: string }) {
+
   const [method, setMethod] = useState("card");
   const [card, setCard] = useState({ number: "", name: "", exp: "", cvc: "" });
   const [loading, setLoading] = useState(false);

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Bookmark, Briefcase, CreditCard, FileText, LogOut, MessageCircle, Plus, RefreshCw, Search, Settings, User as UserIcon, Wallet } from "lucide-react";
+import { Bookmark, Briefcase, FileText, LogOut, MessageCircle, Plus, RefreshCw, Search, Settings, User as UserIcon, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";

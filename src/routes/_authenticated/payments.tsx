@@ -106,9 +106,6 @@ function Payments() {
 
 function GigJobCheckout({ gigId, jobId }: { gigId?: string; jobId?: string }) {
 
-
-function Payments() {
-  const { gig: gigId, job: jobId } = Route.useSearch();
   const [method, setMethod] = useState("card");
   const [card, setCard] = useState({ number: "", name: "", exp: "", cvc: "" });
   const [loading, setLoading] = useState(false);

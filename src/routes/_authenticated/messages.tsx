@@ -6,9 +6,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Camera, Image as ImageIcon, Mic, Paperclip, Send, Smile, Sticker } from "lucide-react";
+import { Camera, File as FileIcon, Image as ImageIcon, Mic, Paperclip, Send, Smile, X, Loader2, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
+import { ImageEditor } from "@/components/ImageEditor";
 
 const searchSchema = z.object({ c: z.string().uuid().optional() });
 
@@ -25,7 +27,25 @@ type Conv = {
   last_message_at: string;
   other?: { id: string; display_name: string | null; avatar_url: string | null } | null;
 };
-type Message = { id: string; sender_id: string; body: string | null; created_at: string };
+type Message = {
+  id: string; sender_id: string; body: string | null; created_at: string;
+  attachment_url: string | null; attachment_type: string | null; attachment_name: string | null; attachment_size: number | null;
+};
+
+type Pending = {
+  id: string;
+  file: File | Blob;
+  name: string;
+  type: string;
+  size: number;
+  previewUrl: string; // local object URL
+};
+
+function fmtSize(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
 
 function MessagesPage() {
   const { user } = useAuth();
@@ -53,8 +73,7 @@ function MessagesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar />
-      <div className="mx-auto flex w-full max-w-6xl flex-1 overflow-hidden border-x border-border md:my-6 md:rounded-2xl md:border">
-        {/* Conv list */}
+      <div className="mx-auto flex w-full max-w-6xl flex-1 overflow-hidden border-x border-border md:my-6 md:rounded-2xl md:border" style={{ minHeight: 0 }}>
         <aside className={`w-full border-r border-border md:w-80 ${activeId ? "hidden md:block" : "block"}`}>
           <div className="border-b border-border p-4">
             <h2 className="font-display text-lg font-semibold">Chats</h2>
@@ -67,7 +86,7 @@ function MessagesPage() {
                     onClick={() => navigate({ search: { c: c.id } })}
                     className={`flex w-full items-center gap-3 p-3 text-left transition hover:bg-secondary ${activeId === c.id ? "bg-secondary" : ""}`}
                   >
-                    <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">
                       {(c.other?.display_name?.[0] ?? "?").toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -85,8 +104,7 @@ function MessagesPage() {
           )}
         </aside>
 
-        {/* Active chat */}
-        <section className={`flex flex-1 flex-col ${!activeId ? "hidden md:flex" : "flex"}`}>
+        <section className={`flex flex-1 flex-col ${!activeId ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
           {activeId ? <ChatPanel convId={activeId} onBack={() => navigate({ search: {} })} /> : (
             <div className="grid flex-1 place-items-center p-8 text-center text-sm text-muted-foreground">
               Pick a conversation to start chatting.
@@ -102,18 +120,26 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState("");
+  const [pending, setPending] = useState<Pending[]>([]);
   const [showEmoji, setShowEmoji] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [editing, setEditing] = useState<File | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentTyping = useRef<number>(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const camInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
-    supabase.from("messages").select("id,sender_id,body,created_at").eq("conversation_id", convId).order("created_at").then(({ data }) => {
-      if (active) setMessages((data ?? []) as Message[]);
-    });
+    supabase.from("messages")
+      .select("id,sender_id,body,created_at,attachment_url,attachment_type,attachment_name,attachment_size")
+      .eq("conversation_id", convId).order("created_at").then(({ data }) => {
+        if (active) setMessages((data ?? []) as Message[]);
+      });
     const channel = supabase.channel(`chat:${convId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {
         const m = payload.new as Message;
@@ -133,7 +159,7 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, otherTyping]);
+  }, [messages.length, otherTyping, pending.length]);
 
   function broadcastTyping() {
     const now = Date.now();
@@ -142,55 +168,133 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
     channelRef.current?.send({ type: "broadcast", event: "typing", payload: { user_id: user?.id } });
   }
 
-  async function send(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || !user) return;
-    setBody("");
-    // Optimistic
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: Message = { id: tempId, sender_id: user.id, body: trimmed, created_at: new Date().toISOString() };
-    setMessages((prev) => [...prev, optimistic]);
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({ conversation_id: convId, sender_id: user.id, body: trimmed })
-      .select("id,sender_id,body,created_at")
-      .single();
-    if (error) {
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      toast.error(error.message || "Failed to send");
-      setBody(trimmed);
-      return;
-    }
-    setMessages((prev) => {
-      const without = prev.filter((m) => m.id !== tempId);
-      return without.some((m) => m.id === data.id) ? without : [...without, data as Message];
-    });
-    await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convId);
+  function addPendingFile(file: File | Blob, name: string, type: string) {
+    const size = (file as File).size ?? (file as Blob).size;
+    if (size > 15 * 1024 * 1024) { toast.error(`${name} is over 15MB`); return; }
+    const previewUrl = URL.createObjectURL(file);
+    setPending((p) => [...p, { id: crypto.randomUUID(), file, name, type, size, previewUrl }]);
   }
 
-  const emojis = ["😀","😂","🥰","😎","🔥","💯","👍","👏","🎉","💸","🙏","🚀","✨","💪","❤️","😅","🤔","👀","💀","🤝"];
-  const stickers = ["🦄","🐱","🐶","🌮","🍕","☕️","🎮","📸","🎨","💎"];
+  function onPickImage(files: FileList | null) {
+    if (!files || !files[0]) return;
+    setEditing(files[0]);
+    if (imgInputRef.current) imgInputRef.current.value = "";
+    if (camInputRef.current) camInputRef.current.value = "";
+  }
+  function onPickFile(files: FileList | null) {
+    if (!files) return;
+    Array.from(files).forEach((f) => addPendingFile(f, f.name, f.type || "application/octet-stream"));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+  function removePending(id: string) {
+    setPending((p) => {
+      const found = p.find((x) => x.id === id);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return p.filter((x) => x.id !== id);
+    });
+  }
+
+  async function uploadOne(p: Pending): Promise<{ url: string; type: string; name: string; size: number }> {
+    const ext = p.name.includes(".") ? p.name.split(".").pop() : (p.type.split("/")[1] || "bin");
+    const path = `${user!.id}/messages/${convId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("post-attachments").upload(path, p.file, { contentType: p.type, cacheControl: "3600" });
+    if (error) throw error;
+    const { data } = await supabase.storage.from("post-attachments").createSignedUrl(path, 60 * 60 * 24 * 365);
+    return { url: data?.signedUrl ?? "", type: p.type, name: p.name, size: p.size };
+  }
+
+  async function send() {
+    const text = body.trim();
+    if (!text && pending.length === 0) return;
+    if (!user) return;
+    setSending(true);
+    try {
+      // Upload all attachments
+      const uploaded = await Promise.all(pending.map(uploadOne));
+      const rows: Array<Partial<Message> & { conversation_id: string; sender_id: string }> = [];
+      // First attachments
+      uploaded.forEach((u, idx) => {
+        rows.push({
+          conversation_id: convId, sender_id: user.id,
+          body: idx === uploaded.length - 1 && !text ? null : (idx === uploaded.length - 1 ? text : null),
+          attachment_url: u.url, attachment_type: u.type, attachment_name: u.name, attachment_size: u.size,
+        });
+      });
+      if (uploaded.length === 0 && text) {
+        rows.push({ conversation_id: convId, sender_id: user.id, body: text, attachment_url: null, attachment_type: null, attachment_name: null, attachment_size: null });
+      }
+      // Optimistic placeholders
+      const optimistic: Message[] = rows.map((r, i) => ({
+        id: `temp-${Date.now()}-${i}`,
+        sender_id: user.id,
+        body: r.body ?? null,
+        created_at: new Date().toISOString(),
+        attachment_url: r.attachment_url ?? null,
+        attachment_type: r.attachment_type ?? null,
+        attachment_name: r.attachment_name ?? null,
+        attachment_size: r.attachment_size ?? null,
+      }));
+      setMessages((prev) => [...prev, ...optimistic]);
+      setBody(""); pending.forEach((p) => URL.revokeObjectURL(p.previewUrl)); setPending([]);
+
+      const { data, error } = await supabase.from("messages").insert(rows).select("id,sender_id,body,created_at,attachment_url,attachment_type,attachment_name,attachment_size");
+      if (error) throw error;
+      // Replace optimistic
+      setMessages((prev) => {
+        const without = prev.filter((m) => !optimistic.some((o) => o.id === m.id));
+        const real = (data ?? []) as Message[];
+        const dedup = real.filter((r) => !without.some((m) => m.id === r.id));
+        return [...without, ...dedup];
+      });
+      await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", convId);
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to send");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function sendEmoji(emoji: string) {
+    setBody((b) => b + emoji);
+  }
 
   return (
     <>
       <header className="flex items-center gap-3 border-b border-border p-3">
         <button onClick={onBack} className="md:hidden text-sm text-muted-foreground">←</button>
-        <div className="grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">C</div>
-        <div>
-          <div className="text-sm font-semibold">Conversation</div>
-          <div className="text-xs text-muted-foreground">Online</div>
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">C</div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">Conversation</div>
+          <div className="text-xs text-muted-foreground">{otherTyping ? "typing..." : "Online"}</div>
         </div>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[var(--gradient-ink)] p-4" style={{ minHeight: 0 }}>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[var(--gradient-ink)] p-3 sm:p-4" style={{ minHeight: 0 }}>
         <div className="space-y-2">
           {messages.map((m) => {
             const mine = m.sender_id === user?.id;
+            const isImg = m.attachment_type?.startsWith("image/");
             return (
               <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm ${mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card text-foreground rounded-bl-sm"}`}>
-                  {m.body}
-                  <div className={`mt-1 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                <div className={`max-w-[85%] sm:max-w-[75%] overflow-hidden rounded-2xl text-sm shadow-sm ${mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card text-foreground rounded-bl-sm"}`}>
+                  {m.attachment_url && isImg && (
+                    <a href={m.attachment_url} target="_blank" rel="noreferrer" className="block">
+                      <img src={m.attachment_url} alt={m.attachment_name ?? "image"} className="max-h-80 w-full object-cover" />
+                    </a>
+                  )}
+                  {m.attachment_url && !isImg && (
+                    <a href={m.attachment_url} target="_blank" rel="noreferrer"
+                       className={`flex items-center gap-2 border-b ${mine ? "border-primary-foreground/20" : "border-border"} p-3`}>
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-black/20"><FileIcon className="h-5 w-5" /></div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium">{m.attachment_name ?? "File"}</div>
+                        <div className={`text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{m.attachment_size ? fmtSize(m.attachment_size) : ""}</div>
+                      </div>
+                      <Download className="h-4 w-4 shrink-0 opacity-70" />
+                    </a>
+                  )}
+                  {m.body && <div className="whitespace-pre-wrap px-3 py-2">{m.body}</div>}
+                  <div className={`px-3 pb-1.5 text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
                     {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </div>
                 </div>
@@ -211,49 +315,93 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
       </div>
 
       {showEmoji && (
-        <div className="border-t border-border bg-card p-3">
-          <div className="text-xs font-semibold text-muted-foreground">Emojis</div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {emojis.map((e) => (
-              <button key={e} onClick={() => send(e)} className="rounded-md px-2 py-1 text-xl hover:bg-secondary">{e}</button>
-            ))}
-          </div>
-          <div className="mt-3 text-xs font-semibold text-muted-foreground">Stickers</div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {stickers.map((s) => (
-              <button key={s} onClick={() => send(s + s + s)} className="rounded-md px-2 py-1 text-3xl hover:bg-secondary">{s}</button>
-            ))}
-          </div>
+        <div className="border-t border-border bg-card">
+          <EmojiPicker
+            onEmojiClick={(e) => sendEmoji(e.emoji)}
+            theme={Theme.DARK}
+            emojiStyle={EmojiStyle.NATIVE}
+            width="100%"
+            height={340}
+            lazyLoadEmojis
+            searchDisabled={false}
+            previewConfig={{ showPreview: false }}
+          />
         </div>
       )}
 
       <form
-        onSubmit={(e) => { e.preventDefault(); send(body); }}
-        className="flex items-center gap-1 border-t border-border bg-card p-2"
+        onSubmit={(e) => { e.preventDefault(); send(); }}
+        className="border-t border-border bg-card p-2 sm:p-3"
       >
-        <Button type="button" size="icon" variant="ghost" onClick={() => setShowEmoji(s => !s)}><Smile className="h-5 w-5" /></Button>
-        <Button type="button" size="icon" variant="ghost"><Sticker className="h-5 w-5" /></Button>
-        <Button type="button" size="icon" variant="ghost" asChild>
-          <label><Paperclip className="h-5 w-5" /><input type="file" className="hidden" /></label>
-        </Button>
-        <Button type="button" size="icon" variant="ghost" asChild>
-          <label><ImageIcon className="h-5 w-5" /><input type="file" accept="image/*" className="hidden" /></label>
-        </Button>
-        <Button type="button" size="icon" variant="ghost" asChild>
-          <label><Camera className="h-5 w-5" /><input type="file" accept="image/*" capture="environment" className="hidden" /></label>
-        </Button>
-        <input
-          value={body}
-          onChange={(e) => { setBody(e.target.value); broadcastTyping(); }}
-          placeholder="Type a message"
-          className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm outline-none focus:border-primary"
-        />
-        {body.trim() ? (
-          <Button type="submit" size="icon" className="rounded-full"><Send className="h-4 w-4" /></Button>
-        ) : (
-          <Button type="button" size="icon" variant="ghost"><Mic className="h-5 w-5" /></Button>
-        )}
+        <div className="flex flex-col gap-2 rounded-2xl border border-border bg-background p-2">
+          {pending.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+              {pending.map((p) => (
+                <div key={p.id} className="group relative overflow-hidden rounded-lg border border-border bg-secondary">
+                  {p.type.startsWith("image/") ? (
+                    <img src={p.previewUrl} alt={p.name} className="h-20 w-20 object-cover" />
+                  ) : (
+                    <div className="flex h-20 w-32 flex-col items-center justify-center gap-1 p-2">
+                      <FileIcon className="h-6 w-6 text-primary" />
+                      <span className="line-clamp-2 text-center text-[10px] text-muted-foreground">{p.name}</span>
+                    </div>
+                  )}
+                  <button type="button" onClick={() => removePending(p.id)}
+                    className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-white hover:bg-black">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-end gap-1">
+            <Button type="button" size="icon" variant="ghost" onClick={() => setShowEmoji((s) => !s)} aria-label="Emoji">
+              <Smile className="h-5 w-5" />
+            </Button>
+            <Button type="button" size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} aria-label="Attach file">
+              <Paperclip className="h-5 w-5" />
+            </Button>
+            <Button type="button" size="icon" variant="ghost" onClick={() => imgInputRef.current?.click()} aria-label="Image">
+              <ImageIcon className="h-5 w-5" />
+            </Button>
+            <Button type="button" size="icon" variant="ghost" onClick={() => camInputRef.current?.click()} aria-label="Camera">
+              <Camera className="h-5 w-5" />
+            </Button>
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => onPickFile(e.target.files)} />
+            <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPickImage(e.target.files)} />
+            <input ref={camInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPickImage(e.target.files)} />
+            <textarea
+              value={body}
+              onChange={(e) => { setBody(e.target.value); broadcastTyping(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+              placeholder="Type a message"
+              rows={1}
+              className="max-h-32 min-h-[36px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"
+            />
+            {body.trim() || pending.length ? (
+              <Button type="submit" size="icon" className="rounded-full" disabled={sending}>
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            ) : (
+              <Button type="button" size="icon" variant="ghost" aria-label="Voice"><Mic className="h-5 w-5" /></Button>
+            )}
+          </div>
+        </div>
       </form>
+
+      {editing && (
+        <ImageEditor
+          key={editing.name + editing.size + editing.lastModified}
+          file={editing}
+          open={!!editing}
+          onCancel={() => setEditing(null)}
+          onConfirm={(blob) => {
+            const name = editing.name || `photo-${Date.now()}.jpg`;
+            addPendingFile(blob, name, blob.type || "image/jpeg");
+            setEditing(null);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -260,6 +260,36 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
     }
   }
 
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size) recChunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        const blob = new Blob(recChunksRef.current, { type: mime || "audio/webm" });
+        if (blob.size > 0) addPendingFile(blob, `voice-${Date.now()}.webm`, blob.type);
+        setRecording(false); setRecSecs(0);
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true); setRecSecs(0);
+      recTimerRef.current = setInterval(() => setRecSecs((s) => s + 1), 1000);
+    } catch {
+      toast.error("Microphone permission denied");
+    }
+  }
+  function stopRecording() { mediaRecorderRef.current?.state === "recording" && mediaRecorderRef.current.stop(); }
+  function cancelRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      recChunksRef.current = [];
+      mediaRecorderRef.current.stop();
+    }
+  }
+
   return (
     <>
       <header className="flex items-center gap-3 border-b border-border p-3">

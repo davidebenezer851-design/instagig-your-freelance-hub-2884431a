@@ -1,12 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Briefcase, MessageSquare, Search, Sparkles, Zap } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { GigCard } from "@/components/GigCard";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { useScrollFade } from "@/hooks/useScrollFade";
+import heroVideo from "@/assets/hero.mp4.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({

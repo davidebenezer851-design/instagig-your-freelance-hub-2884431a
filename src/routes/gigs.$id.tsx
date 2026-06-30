@@ -166,7 +166,7 @@ function GigDetail() {
               <MessageCircle className="mr-2 h-4 w-4" /> Contact freelancer
             </Button>
             <Button asChild className="mt-2 w-full" variant="secondary">
-              <Link to="/payments" search={{ gig: gig.id } as never}>Continue (${gig.starting_price})</Link>
+              <Link to="/wallet" search={{ gig: gig.id, price: gig.starting_price, title: gig.title } as never}>Continue (${gig.starting_price})</Link>
             </Button>
             <div className="mt-4 flex gap-2">
               <Button variant="ghost" size="sm" className="flex-1" onClick={() => toggleLike.mutate()}>

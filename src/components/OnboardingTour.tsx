@@ -1,68 +1,114 @@
-import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { ChevronRight, ChevronLeft, Sparkles, Wallet, MessageCircle, Briefcase, Plus } from "lucide-react";
 
-const STEPS = [
-  { icon: Sparkles,    title: "Welcome to InstaGIG 🍋", body: "The neon-fast freelance marketplace. Quick 30-second tour?" },
-  { icon: Briefcase,   title: "Browse Gigs & Jobs",       body: "Use the top nav to find services or post your own. Like and save anything to revisit later." },
-  { icon: MessageCircle, title: "Chat in real time",      body: "Tap a gig or job, then message the poster. Swipe right on any message to reply — just like WhatsApp." },
-  { icon: Wallet,      title: "Your Wallet",              body: "Top up credits, pay for boosts, and track every transaction. The chip in your navbar shows live balance." },
-  { icon: Plus,        title: "Post your first listing",  body: "Open your profile menu → Post a Gig or Post a Job to get going." },
+type Step = { selector: string; title: string; body: string; placement?: "top" | "bottom" };
+
+const STEPS: Step[] = [
+  { selector: '[data-tour="browse"]',   title: "Browse Gigs & Jobs",   body: "Tap here to explore services from freelancers around the world." },
+  { selector: '[data-tour="messages"]', title: "Real-time chat",       body: "Open Messages to chat — swipe right on a bubble to reply, just like WhatsApp." },
+  { selector: '[data-tour="wallet"]',   title: "Your Wallet",          body: "Top up, pay for boosts and gigs, and watch the chip pulse when your balance changes." },
+  { selector: '[data-tour="profile"]',  title: "Your account",         body: "Profile, settings, posting a gig/job — everything lives in this menu.", placement: "top" },
 ];
+
+type Rect = { top: number; left: number; width: number; height: number };
 
 export function OnboardingTour() {
   const { user, loading } = useAuth();
-  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const [active, setActive] = useState(false);
   const [i, setI] = useState(0);
+  const [rect, setRect] = useState<Rect | null>(null);
 
   useEffect(() => {
-    if (loading || !user) return;
+    if (loading || !user || typeof window === "undefined") return;
     const key = `instagig:tour:${user.id}`;
-    if (typeof window === "undefined") return;
     if (localStorage.getItem(key)) return;
-    const t = setTimeout(() => setOpen(true), 800);
+    const t = setTimeout(() => setActive(true), 900);
     return () => clearTimeout(t);
   }, [user, loading]);
 
+  const step = STEPS[i];
+
+  useLayoutEffect(() => {
+    if (!active) return;
+    function measure() {
+      const el = document.querySelector(step.selector) as HTMLElement | null;
+      if (!el) { setRect(null); return; }
+      const r = el.getBoundingClientRect();
+      setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    }
+    measure();
+    const id = setInterval(measure, 250); // re-measure for layout shifts/scroll
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => { clearInterval(id); window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+  }, [active, step]);
+
   function finish() {
     if (user) localStorage.setItem(`instagig:tour:${user.id}`, "1");
-    setOpen(false);
+    setActive(false);
+  }
+  function next() {
+    if (i < STEPS.length - 1) setI(i + 1);
+    else { finish(); navigate({ to: "/dashboard" }); }
   }
 
-  const step = STEPS[i];
-  const Icon = step.icon;
+  if (!active) return null;
+
+  const pad = 8;
+  const r = rect;
+  const tooltipTop = r
+    ? step.placement === "top"
+      ? Math.max(16, r.top - 160)
+      : Math.min(window.innerHeight - 200, r.top + r.height + 14)
+    : 100;
+  const tooltipLeft = r
+    ? Math.min(Math.max(16, r.left + r.width / 2 - 160), window.innerWidth - 336)
+    : 16;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) finish(); }}>
-      <DialogContent className="max-w-md p-0 overflow-hidden">
-        <div className="grain-bg relative bg-gradient-to-br from-card to-primary/10 p-6">
-          <div className="mb-4 grid h-12 w-12 place-items-center rounded-xl bg-primary text-primary-foreground shadow-[var(--shadow-glow)]">
-            <Icon className="h-6 w-6" />
-          </div>
-          <h2 className="font-display text-2xl font-bold">{step.title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{step.body}</p>
+    <div className="fixed inset-0 z-[100]" aria-modal="true" role="dialog">
+      {/* Dark overlay with cutout */}
+      {r ? (
+        <div
+          className="pointer-events-auto absolute rounded-xl ring-2 ring-primary transition-all duration-300"
+          style={{
+            top: r.top - pad,
+            left: r.left - pad,
+            width: r.width + pad * 2,
+            height: r.height + pad * 2,
+            boxShadow: "0 0 0 9999px rgba(0,0,0,0.78), 0 0 24px 6px hsl(80 100% 56% / 0.55)",
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-black/80" />
+      )}
 
-          <div className="mt-6 flex items-center gap-1.5">
-            {STEPS.map((_, idx) => (
-              <span key={idx} className={`h-1.5 rounded-full transition-all ${idx === i ? "w-6 bg-primary" : "w-1.5 bg-border"}`} />
-            ))}
-          </div>
+      {/* Tooltip */}
+      <div
+        className="pointer-events-auto absolute w-[320px] max-w-[calc(100vw-32px)] rounded-2xl border border-primary/40 bg-card p-5 shadow-2xl animate-in fade-in slide-in-from-bottom-2"
+        style={{ top: tooltipTop, left: tooltipLeft }}
+      >
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-primary">Tour · {i + 1}/{STEPS.length}</div>
+        <h3 className="mt-1 font-display text-lg font-bold">{step.title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
+
+        <div className="mt-4 flex items-center gap-1.5">
+          {STEPS.map((_, idx) => (
+            <span key={idx} className={`h-1.5 rounded-full transition-all ${idx === i ? "w-6 bg-primary" : "w-1.5 bg-border"}`} />
+          ))}
         </div>
-        <div className="flex items-center justify-between border-t border-border bg-card p-3">
+
+        <div className="mt-4 flex items-center justify-between">
           <button type="button" onClick={finish} className="text-xs text-muted-foreground hover:text-foreground">Skip tour</button>
           <div className="flex gap-2">
-            {i > 0 && <Button size="sm" variant="ghost" onClick={() => setI(i - 1)}><ChevronLeft className="h-4 w-4" /> Back</Button>}
-            {i < STEPS.length - 1 ? (
-              <Button size="sm" onClick={() => setI(i + 1)}>Next <ChevronRight className="h-4 w-4" /></Button>
-            ) : (
-              <Button size="sm" asChild onClick={finish}><Link to="/dashboard">Get started</Link></Button>
-            )}
+            {i > 0 && <Button size="sm" variant="ghost" onClick={() => setI(i - 1)}>Back</Button>}
+            <Button size="sm" onClick={next}>{i < STEPS.length - 1 ? "Next" : "Get started"}</Button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }

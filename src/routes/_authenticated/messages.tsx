@@ -10,6 +10,7 @@ import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, P
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ImageEditor } from "@/components/ImageEditor";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -119,11 +120,16 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState("");
   const [pending, setPending] = useState<Pending[]>([]);
-  const [showEmoji, setShowEmoji] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
   const [sending, setSending] = useState(false);
   const [editing, setEditing] = useState<File | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recSecs, setRecSecs] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSentTyping = useRef<number>(0);
@@ -254,6 +260,36 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
     }
   }
 
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recChunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size) recChunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        const blob = new Blob(recChunksRef.current, { type: mime || "audio/webm" });
+        if (blob.size > 0) addPendingFile(blob, `voice-${Date.now()}.webm`, blob.type);
+        setRecording(false); setRecSecs(0);
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true); setRecSecs(0);
+      recTimerRef.current = setInterval(() => setRecSecs((s) => s + 1), 1000);
+    } catch {
+      toast.error("Microphone permission denied");
+    }
+  }
+  function stopRecording() { mediaRecorderRef.current?.state === "recording" && mediaRecorderRef.current.stop(); }
+  function cancelRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      recChunksRef.current = [];
+      mediaRecorderRef.current.stop();
+    }
+  }
+
   return (
     <>
       <header className="flex items-center gap-3 border-b border-border p-3">
@@ -289,17 +325,6 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
         </div>
       </div>
 
-      {showEmoji && (
-        <div className="border-t border-border bg-card">
-          <EmojiPicker
-            onEmojiClick={(e) => setBody((b) => b + e.emoji)}
-            theme={Theme.DARK} emojiStyle={EmojiStyle.NATIVE}
-            width="100%" height={isMobile ? 280 : 340}
-            lazyLoadEmojis searchDisabled={false} previewConfig={{ showPreview: false }}
-          />
-        </div>
-      )}
-
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
         className="border-t border-border bg-card p-2 sm:p-3"
@@ -315,6 +340,14 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
           </div>
         )}
 
+        {recording && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
+            Recording voice note · {String(Math.floor(recSecs / 60)).padStart(2, "0")}:{String(recSecs % 60).padStart(2, "0")}
+            <button type="button" onClick={cancelRecording} className="ml-auto text-muted-foreground hover:text-foreground">Cancel</button>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2 rounded-2xl border border-border bg-background p-2">
           {pending.length > 0 && (
             <div className="flex flex-wrap gap-2 border-b border-border pb-2">
@@ -322,6 +355,11 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
                 <div key={p.id} className="group relative overflow-hidden rounded-lg border border-border bg-secondary">
                   {p.type.startsWith("image/") ? (
                     <img src={p.previewUrl} alt={p.name} className="h-20 w-20 object-cover" />
+                  ) : p.type.startsWith("audio/") ? (
+                    <div className="flex h-20 w-56 items-center gap-2 p-2">
+                      <Mic className="h-5 w-5 shrink-0 text-primary" />
+                      <audio src={p.previewUrl} controls className="h-8 w-full" />
+                    </div>
                   ) : (
                     <div className="flex h-20 w-32 flex-col items-center justify-center gap-1 p-2">
                       <FileIcon className="h-6 w-6 text-primary" />
@@ -337,9 +375,19 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
             </div>
           )}
           <div className="flex items-end gap-1">
-            <Button type="button" size="icon" variant="ghost" onClick={() => setShowEmoji((s) => !s)} aria-label="Emoji">
-              <Smile className="h-5 w-5" />
-            </Button>
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" size="icon" variant="ghost" aria-label="Emoji"><Smile className="h-5 w-5" /></Button>
+              </PopoverTrigger>
+              <PopoverContent side="top" align="start" sideOffset={8} className="z-50 w-[min(360px,calc(100vw-24px))] p-0 border-border">
+                <EmojiPicker
+                  onEmojiClick={(e) => setBody((b) => b + e.emoji)}
+                  theme={Theme.DARK} emojiStyle={EmojiStyle.NATIVE}
+                  width="100%" height={isMobile ? 320 : 380}
+                  lazyLoadEmojis searchDisabled={false} previewConfig={{ showPreview: false }}
+                />
+              </PopoverContent>
+            </Popover>
             <Button type="button" size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} aria-label="Attach file">
               <Paperclip className="h-5 w-5" />
             </Button>
@@ -367,7 +415,9 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             ) : (
-              <Button type="button" size="icon" variant="ghost" aria-label="Voice"><Mic className="h-5 w-5" /></Button>
+              <Button type="button" size="icon" variant={recording ? "default" : "ghost"} aria-label={recording ? "Stop recording" : "Record voice"} onClick={recording ? stopRecording : startRecording}>
+                <Mic className={`h-5 w-5 ${recording ? "animate-pulse" : ""}`} />
+              </Button>
             )}
           </div>
         </div>
@@ -439,6 +489,7 @@ function SwipeableMessage({ children, onReply, mine }: { children: React.ReactNo
 
 function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replied: Message | null }) {
   const isImg = m.attachment_type?.startsWith("image/");
+  const isAudio = m.attachment_type?.startsWith("audio/");
   return (
     <div className={`max-w-[85%] sm:max-w-[70%] overflow-hidden rounded-2xl text-sm shadow-sm ${mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-card text-foreground rounded-bl-sm"}`}>
       {replied && (
@@ -451,7 +502,12 @@ function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replie
           <img src={m.attachment_url} alt={m.attachment_name ?? "image"} className="max-h-80 w-full object-cover" />
         </a>
       )}
-      {m.attachment_url && !isImg && (
+      {m.attachment_url && isAudio && (
+        <div className="flex items-center gap-2 p-2">
+          <audio src={m.attachment_url} controls className="h-9 w-56 max-w-full" />
+        </div>
+      )}
+      {m.attachment_url && !isImg && !isAudio && (
         <a href={m.attachment_url} target="_blank" rel="noreferrer"
            className={`flex items-center gap-2 ${m.body ? `border-b ${mine ? "border-primary-foreground/20" : "border-border"}` : ""} p-3`}>
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-black/20"><FileIcon className="h-5 w-5" /></div>

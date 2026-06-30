@@ -26,7 +26,6 @@ import { Route as AuthenticatedSavedRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedPostJobRouteImport } from './routes/_authenticated/post-job'
 import { Route as AuthenticatedPostGigRouteImport } from './routes/_authenticated/post-gig'
-import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedMessagesRouteImport } from './routes/_authenticated/messages'
 import { Route as AuthenticatedInvoicesRouteImport } from './routes/_authenticated/invoices'
@@ -118,11 +117,6 @@ const AuthenticatedPostGigRoute = AuthenticatedPostGigRouteImport.update({
   path: '/post-gig',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedPaymentsRoute = AuthenticatedPaymentsRouteImport.update({
-  id: '/payments',
-  path: '/payments',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -168,7 +162,6 @@ export interface FileRoutesByFullPath {
   '/invoices': typeof AuthenticatedInvoicesRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
-  '/payments': typeof AuthenticatedPaymentsRoute
   '/post-gig': typeof AuthenticatedPostGigRoute
   '/post-job': typeof AuthenticatedPostJobRoute
   '/profile': typeof AuthenticatedProfileRoute
@@ -193,7 +186,6 @@ export interface FileRoutesByTo {
   '/invoices': typeof AuthenticatedInvoicesRoute
   '/messages': typeof AuthenticatedMessagesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
-  '/payments': typeof AuthenticatedPaymentsRoute
   '/post-gig': typeof AuthenticatedPostGigRoute
   '/post-job': typeof AuthenticatedPostJobRoute
   '/profile': typeof AuthenticatedProfileRoute
@@ -220,7 +212,6 @@ export interface FileRoutesById {
   '/_authenticated/invoices': typeof AuthenticatedInvoicesRoute
   '/_authenticated/messages': typeof AuthenticatedMessagesRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
-  '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/post-gig': typeof AuthenticatedPostGigRoute
   '/_authenticated/post-job': typeof AuthenticatedPostJobRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
@@ -247,7 +238,6 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/messages'
     | '/onboarding'
-    | '/payments'
     | '/post-gig'
     | '/post-job'
     | '/profile'
@@ -272,7 +262,6 @@ export interface FileRouteTypes {
     | '/invoices'
     | '/messages'
     | '/onboarding'
-    | '/payments'
     | '/post-gig'
     | '/post-job'
     | '/profile'
@@ -298,7 +287,6 @@ export interface FileRouteTypes {
     | '/_authenticated/invoices'
     | '/_authenticated/messages'
     | '/_authenticated/onboarding'
-    | '/_authenticated/payments'
     | '/_authenticated/post-gig'
     | '/_authenticated/post-job'
     | '/_authenticated/profile'
@@ -443,13 +431,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPostGigRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/payments': {
-      id: '/_authenticated/payments'
-      path: '/payments'
-      fullPath: '/payments'
-      preLoaderRoute: typeof AuthenticatedPaymentsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
@@ -502,7 +483,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInvoicesRoute: typeof AuthenticatedInvoicesRoute
   AuthenticatedMessagesRoute: typeof AuthenticatedMessagesRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
-  AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedPostGigRoute: typeof AuthenticatedPostGigRoute
   AuthenticatedPostJobRoute: typeof AuthenticatedPostJobRoute
   AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
@@ -518,7 +498,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInvoicesRoute: AuthenticatedInvoicesRoute,
   AuthenticatedMessagesRoute: AuthenticatedMessagesRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
-  AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedPostGigRoute: AuthenticatedPostGigRoute,
   AuthenticatedPostJobRoute: AuthenticatedPostJobRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
@@ -564,13 +543,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

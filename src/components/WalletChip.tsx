@@ -18,6 +18,7 @@ export function WalletChip() {
   return (
     <Link
       to="/wallet"
+      data-tour="wallet"
       className={`group hidden md:inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/15 ${pulse ? "wallet-pulse" : ""}`}
       aria-label="Wallet balance"
     >

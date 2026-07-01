@@ -512,6 +512,7 @@ export type Database = {
           hourly_rate: number | null
           id: string
           location: string | null
+          plan: string
           rating: number
           reviews_count: number
           skills: string[] | null
@@ -528,6 +529,7 @@ export type Database = {
           hourly_rate?: number | null
           id: string
           location?: string | null
+          plan?: string
           rating?: number
           reviews_count?: number
           skills?: string[] | null
@@ -544,6 +546,7 @@ export type Database = {
           hourly_rate?: number | null
           id?: string
           location?: string | null
+          plan?: string
           rating?: number
           reviews_count?: number
           skills?: string[] | null

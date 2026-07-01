@@ -306,10 +306,12 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   return (
     <>
       <header className="flex items-center gap-3 border-b border-border p-3">
-        <button onClick={onBack} className="md:hidden text-sm text-muted-foreground">←</button>
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">C</div>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">Conversation</div>
+        <button onClick={onBack} className="md:hidden -ml-1 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary" aria-label="Back">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <UserAvatar userId={otherUser?.id} name={otherUser?.display_name} avatarUrl={otherUser?.avatar_url} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{otherUser?.display_name ?? "Loading…"}</div>
           <div className="text-xs text-muted-foreground">{otherTyping ? "typing…" : "Online"}</div>
         </div>
       </header>

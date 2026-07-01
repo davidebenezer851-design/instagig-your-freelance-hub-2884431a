@@ -14,6 +14,7 @@ type Props = {
 /** Always-fresh avatar: pulls profile by id so a profile-photo change reflects everywhere. */
 export function UserAvatar({ userId, name, avatarUrl, size = 32, className }: Props) {
   const [version, setVersion] = useState(0);
+  const [liveAvatarUrl, setLiveAvatarUrl] = useState<string | null>(null);
   const { data } = useQuery({
     queryKey: ["avatar-profile", userId, version],
     queryFn: async () => {
@@ -28,17 +29,24 @@ export function UserAvatar({ userId, name, avatarUrl, size = 32, className }: Pr
   useEffect(() => {
     if (!userId) return;
     function onAvatarUpdate(event: Event) {
-      const updatedUserId = (event as CustomEvent<{ userId?: string }>).detail?.userId;
-      if (updatedUserId === userId) setVersion((v) => v + 1);
+      const detail = (event as CustomEvent<{ userId?: string; avatarUrl?: string | null }>).detail;
+      if (detail?.userId === userId) {
+        if (detail.avatarUrl !== undefined) setLiveAvatarUrl(detail.avatarUrl);
+        setVersion((v) => v + 1);
+      }
     }
     window.addEventListener("instagig:avatar-updated", onAvatarUpdate);
     const channel = supabase.channel(`avatar:${userId}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${userId}` }, () => setVersion((v) => v + 1))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${userId}` }, (payload) => {
+        const next = payload.new as { avatar_url?: string | null };
+        if (next.avatar_url !== undefined) setLiveAvatarUrl(next.avatar_url);
+        setVersion((v) => v + 1);
+      })
       .subscribe();
     return () => { window.removeEventListener("instagig:avatar-updated", onAvatarUpdate); supabase.removeChannel(channel); };
   }, [userId]);
 
-  const url = data?.avatar_url ?? avatarUrl ?? null;
+  const url = liveAvatarUrl ?? data?.avatar_url ?? avatarUrl ?? null;
   const display = data?.display_name ?? name ?? "?";
   const initial = (display[0] ?? "?").toUpperCase();
 

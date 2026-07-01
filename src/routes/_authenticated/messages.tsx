@@ -574,7 +574,7 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
               ))}
             </div>
           )}
-          <div className="grid grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] items-end gap-1">
+          <div className={`grid items-end gap-1 ${isMobile ? "grid-cols-[auto_auto_auto_auto_minmax(0,1fr)_auto]" : "grid-cols-[auto_auto_auto_minmax(0,1fr)_auto]"}`}>
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
               <PopoverTrigger asChild>
                 <Button type="button" size="icon" variant="ghost" aria-label="Emoji"><Smile className="h-5 w-5" /></Button>

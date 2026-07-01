@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/profile")({
 
 function ProfileEdit() {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -52,13 +53,25 @@ function ProfileEdit() {
   async function handleAvatar(file: File) {
     if (!user) return;
     setUploading(true);
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `${user.id}/avatar/${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from("post-attachments").upload(path, file, { contentType: file.type, upsert: true });
-    if (error) { toast.error(error.message); setUploading(false); return; }
-    const { data } = await supabase.storage.from("post-attachments").createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
-    setAvatarUrl(data?.signedUrl ?? null);
-    setUploading(false);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${user.id}/avatar/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("post-attachments").upload(path, file, { contentType: file.type, upsert: true });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from("post-attachments").getPublicUrl(path);
+      const url = pub?.publicUrl ?? null;
+      setAvatarUrl(url);
+      // Persist avatar immediately so it reflects everywhere even without hitting Save
+      const { error: upErr } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+      if (upErr) throw upErr;
+      qc.invalidateQueries({ queryKey: ["my-profile", user.id] });
+      qc.invalidateQueries({ queryKey: ["avatar-profile", user.id] });
+      toast.success("Profile photo updated");
+    } catch (e) {
+      toast.error((e as Error).message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function save() {
@@ -72,8 +85,10 @@ function ProfileEdit() {
       avatar_url: avatarUrl,
     }).eq("id", user.id);
     setSaving(false);
-    if (error) toast.error(error.message);
-    else toast.success("Profile updated");
+    if (error) { toast.error(error.message); return; }
+    qc.invalidateQueries({ queryKey: ["my-profile", user.id] });
+    qc.invalidateQueries({ queryKey: ["avatar-profile", user.id] });
+    toast.success("Profile updated");
   }
 
   function addSkill() {

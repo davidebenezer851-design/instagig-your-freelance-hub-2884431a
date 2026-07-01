@@ -6,12 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, Paperclip, Reply, Send, Smile, X, Loader2, Download } from "lucide-react";
+import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, Paperclip, Reply, Send, Smile, X, Loader2, Download, ArrowLeft } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ImageEditor } from "@/components/ImageEditor";
+import { UserAvatar } from "@/components/UserAvatar";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const searchSchema = z.object({ c: z.string().uuid().optional() });
@@ -137,6 +138,18 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
   const camInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: otherUser } = useQuery({
+    queryKey: ["chat-other", convId, user?.id],
+    enabled: !!user && !!convId,
+    queryFn: async () => {
+      const { data: c } = await supabase.from("conversations").select("user_a,user_b").eq("id", convId).maybeSingle();
+      if (!c) return null;
+      const otherId = c.user_a === user!.id ? c.user_b : c.user_a;
+      const { data: p } = await supabase.from("profiles").select("id,display_name,avatar_url").eq("id", otherId).maybeSingle();
+      return p;
+    },
+  });
 
   useEffect(() => {
     let active = true;
@@ -293,10 +306,12 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   return (
     <>
       <header className="flex items-center gap-3 border-b border-border p-3">
-        <button onClick={onBack} className="md:hidden text-sm text-muted-foreground">←</button>
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">C</div>
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">Conversation</div>
+        <button onClick={onBack} className="md:hidden -ml-1 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary" aria-label="Back">
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <UserAvatar userId={otherUser?.id} name={otherUser?.display_name} avatarUrl={otherUser?.avatar_url} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{otherUser?.display_name ?? "Loading…"}</div>
           <div className="text-xs text-muted-foreground">{otherTyping ? "typing…" : "Online"}</div>
         </div>
       </header>
@@ -469,7 +484,8 @@ function SwipeableMessage({ children, onReply, mine }: { children: React.ReactNo
 
   return (
     <div
-      className={`swipe-row relative flex ${mine ? "justify-end" : "justify-start"} ${dragging ? "is-dragging" : ""}`}
+      className={`swipe-row relative flex items-end ${mine ? "justify-end" : "justify-start"} ${dragging ? "is-dragging" : ""}`}
+      style={{ touchAction: "pan-y" }}
       onTouchStart={(e) => onStart(e.touches[0].clientX, e.touches[0].clientY)}
       onTouchMove={(e) => onMove(e.touches[0].clientX, e.touches[0].clientY)}
       onTouchEnd={onEnd}
@@ -477,10 +493,16 @@ function SwipeableMessage({ children, onReply, mine }: { children: React.ReactNo
       onPointerMove={(e) => { if (e.pointerType === "mouse") return; onMove(e.clientX, e.clientY); }}
       onPointerUp={(e) => { if (e.pointerType === "mouse") return; onEnd(); }}
     >
-      <span className="swipe-reply-hint" style={{ left: 4, opacity: dx > 16 ? Math.min(1, dx / 50) : 0 }}>
+      <span
+        className="pointer-events-none absolute left-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-primary/20 text-primary"
+        style={{ opacity: dx > 16 ? Math.min(1, dx / 50) : 0, transform: `translateY(-50%) scale(${Math.min(1, dx / 50)})` }}
+      >
         <Reply className="h-4 w-4" />
       </span>
-      <div style={{ transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform 180ms ease" }} className="contents">
+      <div
+        style={{ transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform 180ms ease" }}
+        className={`flex max-w-full ${mine ? "justify-end" : "justify-start"}`}
+      >
         {children}
       </div>
     </div>

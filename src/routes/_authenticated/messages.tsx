@@ -139,6 +139,18 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const imgInputRef = useRef<HTMLInputElement>(null);
   const camInputRef = useRef<HTMLInputElement>(null);
 
+  const { data: otherUser } = useQuery({
+    queryKey: ["chat-other", convId, user?.id],
+    enabled: !!user && !!convId,
+    queryFn: async () => {
+      const { data: c } = await supabase.from("conversations").select("user_a,user_b").eq("id", convId).maybeSingle();
+      if (!c) return null;
+      const otherId = c.user_a === user!.id ? c.user_b : c.user_a;
+      const { data: p } = await supabase.from("profiles").select("id,display_name,avatar_url").eq("id", otherId).maybeSingle();
+      return p;
+    },
+  });
+
   useEffect(() => {
     let active = true;
     supabase.from("messages")

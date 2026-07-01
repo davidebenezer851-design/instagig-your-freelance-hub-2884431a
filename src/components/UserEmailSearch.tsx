@@ -24,8 +24,7 @@ type Props = {
 export function UserEmailSearch({ excludeUserId, placeholder = "Search by email", selected, className, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
-  const cleaned = useMemo(() => query.trim().replace(/[%(),]/g, ""), [query]);
-  const searchTerm = cleaned.replace(/[.*]/g, " ").trim();
+  const searchTerm = useMemo(() => query.trim().replace(/[^\p{L}\p{N}@._\-\s]/gu, "").replace(/\s+/g, " "), [query]);
 
   useEffect(() => {
     if (selected) setQuery(selected.email ?? selected.display_name ?? selected.username ?? "");

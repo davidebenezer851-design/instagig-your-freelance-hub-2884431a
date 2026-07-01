@@ -301,7 +301,13 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
     supabase.from("messages")
       .select("id,sender_id,body,created_at,attachment_url,attachment_type,attachment_name,attachment_size,reply_to,read_at")
       .eq("conversation_id", convId).order("created_at").then(({ data }) => {
-        if (active) setMessages((data ?? []) as Message[]);
+        if (active) {
+          const loaded = (data ?? []) as Message[];
+          setMessages((prev) => {
+            const optimistic = prev.filter((m) => m.id.startsWith("temp-"));
+            return [...loaded, ...optimistic.filter((m) => !loaded.some((x) => x.id === m.id))];
+          });
+        }
       });
     const channel = supabase.channel(`chat:${convId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {

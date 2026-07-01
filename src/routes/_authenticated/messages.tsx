@@ -102,7 +102,7 @@ function MessagesPage() {
   }
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-x-hidden bg-background">
+    <div className="flex h-[100dvh] w-full flex-col overflow-x-hidden bg-background">
       <Navbar />
       <div className="mx-auto flex w-full min-w-0 max-w-full flex-1 overflow-hidden border-x border-border md:my-4 md:max-w-6xl md:rounded-2xl md:border" style={{ minHeight: 0 }}>
         <aside className={`w-full min-w-0 border-r border-border md:w-80 ${activeId ? "hidden md:block" : "block"}`}>

@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, Paperclip, Reply, Send, Smile, X, Loader2, Download, ArrowLeft } from "lucide-react";
+import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, Paperclip, Reply, Send, Smile, X, Loader2, Download, ArrowLeft, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
@@ -14,6 +14,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ImageEditor } from "@/components/ImageEditor";
 import { UserAvatar } from "@/components/UserAvatar";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { UserEmailSearch, type UserSearchResult } from "@/components/UserEmailSearch";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 
 const searchSchema = z.object({ c: z.string().uuid().optional() });
 
@@ -28,7 +34,9 @@ type Conv = {
   user_a: string;
   user_b: string;
   last_message_at: string;
-  other?: { id: string; display_name: string | null; avatar_url: string | null } | null;
+  hidden_by_a_at?: string | null;
+  hidden_by_b_at?: string | null;
+  other?: { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
 };
 type Message = {
   id: string; sender_id: string; body: string | null; created_at: string;
@@ -48,6 +56,7 @@ function MessagesPage() {
   const { user } = useAuth();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
+  const qc = useQueryClient();
   const activeId = search.c;
 
   const { data: conversations } = useQuery({
@@ -55,23 +64,46 @@ function MessagesPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("conversations")
-        .select("id,user_a,user_b,last_message_at")
+        .select("id,user_a,user_b,last_message_at,hidden_by_a_at,hidden_by_b_at")
         .or(`user_a.eq.${user!.id},user_b.eq.${user!.id}`)
         .order("last_message_at", { ascending: false });
-      const list = (data ?? []) as Conv[];
+      const list = ((data ?? []) as Conv[]).filter((c) => c.user_a === user!.id ? !c.hidden_by_a_at : !c.hidden_by_b_at);
       const otherIds = list.map(c => c.user_a === user!.id ? c.user_b : c.user_a);
-      const { data: profs } = await supabase.from("profiles").select("id,display_name,avatar_url").in("id", otherIds.length ? otherIds : ["00000000-0000-0000-0000-000000000000"]);
+      const { data: profs } = await supabase.from("profiles").select("id,display_name,avatar_url,email").in("id", otherIds.length ? otherIds : ["00000000-0000-0000-0000-000000000000"]);
       const map = new Map((profs ?? []).map(p => [p.id, p]));
       return list.map(c => ({ ...c, other: map.get(c.user_a === user!.id ? c.user_b : c.user_a) ?? null }));
     },
     enabled: !!user,
   });
 
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel(`conversation-list:${user.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
+        qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+        qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [qc, user]);
+
+  async function hideConversation(c: Conv) {
+    if (!user) return;
+    const column = c.user_a === user.id ? "hidden_by_a_at" : "hidden_by_b_at";
+    const { error } = await supabase.from("conversations").update({ [column]: new Date().toISOString() }).eq("id", c.id);
+    if (error) { toast.error(error.message); return; }
+    if (activeId === c.id) navigate({ search: {} });
+    qc.invalidateQueries({ queryKey: ["conversations", user.id] });
+    toast.success("Conversation removed from your messages");
+  }
+
   return (
     <div className="flex h-[100dvh] flex-col bg-background">
       <Navbar />
-      <div className="mx-auto flex w-full max-w-6xl flex-1 overflow-hidden border-x border-border md:my-4 md:rounded-2xl md:border" style={{ minHeight: 0 }}>
-        <aside className={`w-full border-r border-border md:w-80 ${activeId ? "hidden md:block" : "block"}`}>
+      <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 overflow-hidden border-x border-border md:my-4 md:rounded-2xl md:border" style={{ minHeight: 0 }}>
+        <aside className={`w-full min-w-0 border-r border-border md:w-80 ${activeId ? "hidden md:block" : "block"}`}>
           <div className="border-b border-border p-4">
             <div className="flex items-center justify-between">
               <h2 className="font-display text-lg font-semibold">Chats</h2>
@@ -82,20 +114,13 @@ function MessagesPage() {
             {conversations && conversations.length > 0 ? (
               <ul className="divide-y divide-border">
                 {conversations.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => navigate({ search: { c: c.id } })}
-                      className={`flex w-full items-center gap-3 p-3 text-left transition hover:bg-secondary ${activeId === c.id ? "bg-secondary" : ""}`}
-                    >
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground font-semibold">
-                        {(c.other?.display_name?.[0] ?? "?").toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{c.other?.display_name ?? "Unknown"}</div>
-                        <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(c.last_message_at), { addSuffix: true })}</div>
-                      </div>
-                    </button>
-                  </li>
+                  <ConversationListItem
+                    key={c.id}
+                    conversation={c}
+                    active={activeId === c.id}
+                    onOpen={() => navigate({ search: { c: c.id } })}
+                    onDelete={() => hideConversation(c)}
+                  />
                 ))}
               </ul>
             ) : (
@@ -106,7 +131,7 @@ function MessagesPage() {
           </div>
         </aside>
 
-        <section className={`flex flex-1 flex-col ${!activeId ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
+        <section className={`min-w-0 flex-1 flex-col ${!activeId ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
           {activeId ? <ChatPanel convId={activeId} onBack={() => navigate({ search: {} })} /> : (
             <div className="grid flex-1 place-items-center p-8 text-center text-sm text-muted-foreground">
               Pick a conversation to start chatting.

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { UserAvatar } from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,6 +70,7 @@ function ProfileEdit() {
       if (upErr) throw upErr;
       qc.invalidateQueries({ queryKey: ["my-profile", user.id] });
       qc.invalidateQueries({ queryKey: ["avatar-profile", user.id] });
+      window.dispatchEvent(new CustomEvent("instagig:avatar-updated", { detail: { userId: user.id } }));
       toast.success("Profile photo updated");
     } catch (e) {
       toast.error((e as Error).message || "Upload failed");
@@ -91,6 +93,7 @@ function ProfileEdit() {
     if (error) { toast.error(error.message); return; }
     qc.invalidateQueries({ queryKey: ["my-profile", user.id] });
     qc.invalidateQueries({ queryKey: ["avatar-profile", user.id] });
+    window.dispatchEvent(new CustomEvent("instagig:avatar-updated", { detail: { userId: user.id } }));
     toast.success("Profile updated");
   }
 
@@ -111,9 +114,7 @@ function ProfileEdit() {
         <div className="mt-8 rounded-2xl border border-border bg-card p-6">
           <div className="flex items-center gap-5">
             <div className="relative">
-              <div className="grid h-24 w-24 place-items-center overflow-hidden rounded-full bg-secondary text-3xl font-bold text-primary">
-                {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : (displayName[0] ?? "?").toUpperCase()}
-              </div>
+              <UserAvatar userId={user?.id} name={displayName} avatarUrl={avatarUrl} size={96} className="text-primary" />
               <button
                 onClick={() => fileRef.current?.click()}
                 className="absolute -bottom-1 -right-1 grid h-9 w-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90"

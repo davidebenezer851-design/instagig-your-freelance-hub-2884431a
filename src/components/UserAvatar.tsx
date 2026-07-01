@@ -27,10 +27,15 @@ export function UserAvatar({ userId, name, avatarUrl, size = 32, className }: Pr
 
   useEffect(() => {
     if (!userId) return;
+    function onAvatarUpdate(event: Event) {
+      const updatedUserId = (event as CustomEvent<{ userId?: string }>).detail?.userId;
+      if (updatedUserId === userId) setVersion((v) => v + 1);
+    }
+    window.addEventListener("instagig:avatar-updated", onAvatarUpdate);
     const channel = supabase.channel(`avatar:${userId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${userId}` }, () => setVersion((v) => v + 1))
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { window.removeEventListener("instagig:avatar-updated", onAvatarUpdate); supabase.removeChannel(channel); };
   }, [userId]);
 
   const url = data?.avatar_url ?? avatarUrl ?? null;

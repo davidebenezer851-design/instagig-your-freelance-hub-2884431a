@@ -38,6 +38,8 @@ export type Database = {
       conversations: {
         Row: {
           created_at: string
+          hidden_by_a_at: string | null
+          hidden_by_b_at: string | null
           id: string
           last_message_at: string
           user_a: string
@@ -45,6 +47,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          hidden_by_a_at?: string | null
+          hidden_by_b_at?: string | null
           id?: string
           last_message_at?: string
           user_a: string
@@ -52,6 +56,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          hidden_by_a_at?: string | null
+          hidden_by_b_at?: string | null
           id?: string
           last_message_at?: string
           user_a?: string

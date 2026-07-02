@@ -32,7 +32,7 @@ function InvoicesDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-8 md:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6 md:flex-row md:gap-6 md:px-6 md:py-8">
         {/* Sidebar */}
         <aside className="sticky top-24 hidden h-[calc(100vh-8rem)] w-60 shrink-0 rounded-2xl border border-border bg-card p-3 md:block">
           <div className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">Billing</div>
@@ -58,10 +58,15 @@ function InvoicesDashboard() {
         </aside>
 
         {/* Mobile pill nav */}
-        <div className="mb-4 flex w-full gap-2 overflow-x-auto md:hidden">
-          {(["overview", "builder", "clients", "settings"] as const).map((k) => (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden">
+          {([
+            { k: "overview", label: "Overview" },
+            { k: "builder", label: "Builder" },
+            { k: "clients", label: "Clients" },
+            { k: "settings", label: "Settings" },
+          ] as const).map(({ k, label }) => (
             <button key={k} onClick={() => setView(k)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${view === k ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}>
-              {k}
+              {label}
             </button>
           ))}
         </div>

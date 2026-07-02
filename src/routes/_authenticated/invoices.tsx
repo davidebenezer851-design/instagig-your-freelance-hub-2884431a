@@ -277,12 +277,12 @@ function Builder({ onSaved }: { onSaved: () => void }) {
     <div>
       <div>
         <div className="text-xs uppercase tracking-wide text-primary">Invoice Builder</div>
-        <h1 className="font-display text-3xl font-bold">Create a new invoice</h1>
+        <h1 className="font-display text-2xl font-bold sm:text-3xl">Create a new invoice</h1>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
         {/* Input panel */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1.5">
               <Label>Bill to</Label>

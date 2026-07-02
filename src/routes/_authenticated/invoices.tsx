@@ -32,7 +32,7 @@ function InvoicesDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-8 md:px-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6 md:flex-row md:gap-6 md:px-6 md:py-8">
         {/* Sidebar */}
         <aside className="sticky top-24 hidden h-[calc(100vh-8rem)] w-60 shrink-0 rounded-2xl border border-border bg-card p-3 md:block">
           <div className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">Billing</div>
@@ -58,10 +58,15 @@ function InvoicesDashboard() {
         </aside>
 
         {/* Mobile pill nav */}
-        <div className="mb-4 flex w-full gap-2 overflow-x-auto md:hidden">
-          {(["overview", "builder", "clients", "settings"] as const).map((k) => (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:hidden">
+          {([
+            { k: "overview", label: "Overview" },
+            { k: "builder", label: "Builder" },
+            { k: "clients", label: "Clients" },
+            { k: "settings", label: "Settings" },
+          ] as const).map(({ k, label }) => (
             <button key={k} onClick={() => setView(k)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${view === k ? "bg-primary text-primary-foreground" : "border border-border text-muted-foreground"}`}>
-              {k}
+              {label}
             </button>
           ))}
         </div>
@@ -116,12 +121,12 @@ function Overview({ onCreate }: { onCreate: () => void }) {
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-primary">Overview</div>
-          <h1 className="font-display text-3xl font-bold md:text-4xl">Billing Dashboard</h1>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl md:text-4xl">Billing Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">A live look at what's invoiced, paid and overdue.</p>
         </div>
-        <Button onClick={onCreate} className="font-semibold"><Plus className="mr-1 h-4 w-4" />New invoice</Button>
+        <Button onClick={onCreate} size="sm" className="font-semibold sm:size-default"><Plus className="mr-1 h-4 w-4" />New invoice</Button>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -137,38 +142,40 @@ function Overview({ onCreate }: { onCreate: () => void }) {
           <span className="text-xs text-muted-foreground">{invoices?.length ?? 0} total</span>
         </div>
         {invoices && invoices.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-5 py-3 text-left">Invoice</th>
-                <th className="px-5 py-3 text-left">Title</th>
-                <th className="px-5 py-3 text-left">Due</th>
-                <th className="px-5 py-3 text-right">Amount</th>
-                <th className="px-5 py-3 text-left">Status</th>
-                <th className="px-5 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.slice(0, 10).map((inv) => {
-                const overdue = inv.status === "pending" && inv.due_date && new Date(inv.due_date) < new Date();
-                const status = overdue ? "overdue" : inv.status;
-                return (
-                  <tr key={inv.id} className="border-t border-border hover:bg-secondary/30">
-                    <td className="px-5 py-3 font-mono text-xs">{inv.number}</td>
-                    <td className="px-5 py-3">{inv.title}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "MMM d, yyyy") : "—"}</td>
-                    <td className="px-5 py-3 text-right font-semibold">${Number(inv.total).toFixed(2)}</td>
-                    <td className="px-5 py-3"><StatusBadge status={status} /></td>
-                    <td className="px-5 py-3 text-right">
-                      {inv.recipient_id === user?.id && inv.status === "pending" && (
-                        <Button size="sm" onClick={() => markPaid.mutate(inv.id)}>Mark paid</Button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 text-left sm:px-5">Invoice</th>
+                  <th className="px-4 py-3 text-left sm:px-5">Title</th>
+                  <th className="px-4 py-3 text-left sm:px-5">Due</th>
+                  <th className="px-4 py-3 text-right sm:px-5">Amount</th>
+                  <th className="px-4 py-3 text-left sm:px-5">Status</th>
+                  <th className="px-4 py-3 text-right sm:px-5">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.slice(0, 10).map((inv) => {
+                  const overdue = inv.status === "pending" && inv.due_date && new Date(inv.due_date) < new Date();
+                  const status = overdue ? "overdue" : inv.status;
+                  return (
+                    <tr key={inv.id} className="border-t border-border hover:bg-secondary/30">
+                      <td className="px-4 py-3 font-mono text-xs sm:px-5">{inv.number}</td>
+                      <td className="px-4 py-3 sm:px-5">{inv.title}</td>
+                      <td className="px-4 py-3 text-muted-foreground sm:px-5">{inv.due_date ? format(new Date(inv.due_date), "MMM d, yyyy") : "—"}</td>
+                      <td className="px-4 py-3 text-right font-semibold sm:px-5">${Number(inv.total).toFixed(2)}</td>
+                      <td className="px-4 py-3 sm:px-5"><StatusBadge status={status} /></td>
+                      <td className="px-4 py-3 text-right sm:px-5">
+                        {inv.recipient_id === user?.id && inv.status === "pending" && (
+                          <Button size="sm" onClick={() => markPaid.mutate(inv.id)}>Mark paid</Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="p-10 text-center">
             <FileText className="mx-auto h-10 w-10 text-primary" />
@@ -270,12 +277,12 @@ function Builder({ onSaved }: { onSaved: () => void }) {
     <div>
       <div>
         <div className="text-xs uppercase tracking-wide text-primary">Invoice Builder</div>
-        <h1 className="font-display text-3xl font-bold">Create a new invoice</h1>
+        <h1 className="font-display text-2xl font-bold sm:text-3xl">Create a new invoice</h1>
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
         {/* Input panel */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1.5">
               <Label>Bill to</Label>
@@ -311,16 +318,22 @@ function Builder({ onSaved }: { onSaved: () => void }) {
 
           <div className="mt-5">
             <Label>Line items</Label>
-            <div className="mt-2 space-y-2">
+            <div className="mt-2 space-y-3">
               {items.map((it, idx) => (
-                <div key={idx} className="grid grid-cols-[1fr_60px_80px_80px_auto] items-center gap-2">
-                  <Input placeholder="Description" value={it.description} onChange={(e) => { const n=[...items]; n[idx]={...it, description:e.target.value}; setItems(n);}} />
-                  <Input type="number" min="1" value={it.qty} onChange={(e) => { const n=[...items]; n[idx]={...it, qty:parseFloat(e.target.value)||0}; setItems(n);}} />
-                  <Input type="number" min="0" value={it.rate} onChange={(e) => { const n=[...items]; n[idx]={...it, rate:parseFloat(e.target.value)||0}; setItems(n);}} />
-                  <div className="text-right text-sm font-medium">${((it.qty||0)*(it.rate||0)).toFixed(2)}</div>
-                  <Button type="button" variant="ghost" size="icon" onClick={() => setItems(items.filter((_, i) => i !== idx))} disabled={items.length === 1}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div key={idx} className="rounded-xl border border-border bg-background/40 p-3 sm:border-0 sm:bg-transparent sm:p-0">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_70px_90px_80px_auto] sm:items-center">
+                    <Input placeholder="Description" value={it.description} onChange={(e) => { const n=[...items]; n[idx]={...it, description:e.target.value}; setItems(n);}} />
+                    <div className="grid grid-cols-2 gap-2 sm:contents">
+                      <Input type="number" min="1" placeholder="Qty" value={it.qty} onChange={(e) => { const n=[...items]; n[idx]={...it, qty:parseFloat(e.target.value)||0}; setItems(n);}} />
+                      <Input type="number" min="0" placeholder="Rate" value={it.rate} onChange={(e) => { const n=[...items]; n[idx]={...it, rate:parseFloat(e.target.value)||0}; setItems(n);}} />
+                    </div>
+                    <div className="flex items-center justify-between sm:contents">
+                      <div className="text-sm font-medium sm:text-right">${((it.qty||0)*(it.rate||0)).toFixed(2)}</div>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setItems(items.filter((_, i) => i !== idx))} disabled={items.length === 1}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               ))}
               <Button type="button" variant="ghost" size="sm" onClick={() => setItems([...items, { description: "", qty: 1, rate: 0 }])}>
@@ -349,48 +362,50 @@ function Builder({ onSaved }: { onSaved: () => void }) {
         </div>
 
         {/* Live preview */}
-        <div className="rounded-2xl border border-primary/30 bg-card p-6 shadow-[0_0_60px_-30px_var(--color-primary)]">
-          <div className="flex items-center justify-between border-b border-border pb-4">
-            <div>
+        <div className="min-w-0 rounded-2xl border border-primary/30 bg-card p-4 shadow-[0_0_60px_-30px_var(--color-primary)] sm:p-6">
+          <div className="flex items-center justify-between gap-3 border-b border-border pb-4">
+            <div className="min-w-0">
               <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary font-display font-bold text-primary-foreground">iG</div>
               <div className="mt-2 font-display text-lg font-bold">Insta<span className="text-primary">GIG</span></div>
             </div>
             <div className="text-right">
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Invoice</div>
-              <div className="font-mono text-sm">{format(new Date(issueDate || Date.now()), "yyyyMMdd")}-DRAFT</div>
+              <div className="font-mono text-xs sm:text-sm">{format(new Date(issueDate || Date.now()), "yyyyMMdd")}-DRAFT</div>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-muted-foreground">Billed to</div>
-              <div className="mt-1 font-semibold">{recipientName}</div>
+              <div className="mt-1 truncate font-semibold">{recipientName}</div>
             </div>
-            <div className="text-right">
+            <div className="min-w-0 text-right">
               <div className="text-xs text-muted-foreground">Due</div>
-              <div className="mt-1 font-semibold">{dueDate ? format(new Date(dueDate), "MMM d, yyyy") : "—"}</div>
+              <div className="mt-1 truncate font-semibold">{dueDate ? format(new Date(dueDate), "MMM d, yyyy") : "—"}</div>
             </div>
           </div>
 
-          <h2 className="mt-4 font-display text-xl font-semibold">{title || "Untitled invoice"}</h2>
+          <h2 className="mt-4 font-display text-lg font-semibold sm:text-xl">{title || "Untitled invoice"}</h2>
 
-          <table className="mt-3 w-full text-sm">
-            <thead className="text-xs uppercase text-muted-foreground">
-              <tr><th className="py-2 text-left">Item</th><th className="text-right">Qty</th><th className="text-right">Rate</th><th className="text-right">Total</th></tr>
-            </thead>
-            <tbody>
-              {items.map((i, idx) => (
-                <tr key={idx} className="border-t border-border">
-                  <td className="py-2">{i.description || <span className="text-muted-foreground">Item description</span>}</td>
-                  <td className="text-right">{i.qty}</td>
-                  <td className="text-right">${Number(i.rate).toFixed(2)}</td>
-                  <td className="text-right font-medium">${((i.qty||0)*(i.rate||0)).toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="mt-3 w-full overflow-x-auto">
+            <table className="w-full min-w-[420px] text-sm">
+              <thead className="text-xs uppercase text-muted-foreground">
+                <tr><th className="py-2 text-left">Item</th><th className="text-right">Qty</th><th className="text-right">Rate</th><th className="text-right">Total</th></tr>
+              </thead>
+              <tbody>
+                {items.map((i, idx) => (
+                  <tr key={idx} className="border-t border-border">
+                    <td className="py-2 pr-2">{i.description || <span className="text-muted-foreground">Item description</span>}</td>
+                    <td className="text-right">{i.qty}</td>
+                    <td className="text-right">${Number(i.rate).toFixed(2)}</td>
+                    <td className="text-right font-medium">${((i.qty||0)*(i.rate||0)).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <div className="mt-4 ml-auto w-56 space-y-1 text-sm">
+          <div className="mt-4 ml-auto w-full max-w-xs space-y-1 text-sm sm:w-56">
             <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Tax ({tax}%)</span><span>${taxAmt.toFixed(2)}</span></div>
             <div className="flex justify-between border-t border-border pt-2 font-display text-lg font-bold"><span>Grand Total</span><span className="text-primary">${total.toFixed(2)}</span></div>
@@ -442,7 +457,7 @@ function Clients() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-wide text-primary">Clients</div>
-          <h1 className="font-display text-3xl font-bold">Client Management</h1>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl">Client Management</h1>
           <p className="mt-1 text-sm text-muted-foreground">Everyone you've worked with on InstaGIG.</p>
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
@@ -497,7 +512,7 @@ function SettingsPanel() {
   return (
     <div className="max-w-2xl">
       <div className="text-xs uppercase tracking-wide text-primary">Settings</div>
-      <h1 className="font-display text-3xl font-bold">Settings & Branding</h1>
+      <h1 className="font-display text-2xl font-bold sm:text-3xl">Settings & Branding</h1>
       <p className="mt-1 text-sm text-muted-foreground">Personalize every invoice you send.</p>
 
       <div className="mt-6 space-y-5 rounded-2xl border border-border bg-card p-6">

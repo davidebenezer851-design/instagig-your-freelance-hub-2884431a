@@ -121,12 +121,12 @@ function Overview({ onCreate }: { onCreate: () => void }) {
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-xs uppercase tracking-wide text-primary">Overview</div>
-          <h1 className="font-display text-3xl font-bold md:text-4xl">Billing Dashboard</h1>
+          <h1 className="font-display text-2xl font-bold sm:text-3xl md:text-4xl">Billing Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">A live look at what's invoiced, paid and overdue.</p>
         </div>
-        <Button onClick={onCreate} className="font-semibold"><Plus className="mr-1 h-4 w-4" />New invoice</Button>
+        <Button onClick={onCreate} size="sm" className="font-semibold sm:size-default"><Plus className="mr-1 h-4 w-4" />New invoice</Button>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

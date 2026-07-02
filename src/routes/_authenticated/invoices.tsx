@@ -142,38 +142,40 @@ function Overview({ onCreate }: { onCreate: () => void }) {
           <span className="text-xs text-muted-foreground">{invoices?.length ?? 0} total</span>
         </div>
         {invoices && invoices.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-5 py-3 text-left">Invoice</th>
-                <th className="px-5 py-3 text-left">Title</th>
-                <th className="px-5 py-3 text-left">Due</th>
-                <th className="px-5 py-3 text-right">Amount</th>
-                <th className="px-5 py-3 text-left">Status</th>
-                <th className="px-5 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.slice(0, 10).map((inv) => {
-                const overdue = inv.status === "pending" && inv.due_date && new Date(inv.due_date) < new Date();
-                const status = overdue ? "overdue" : inv.status;
-                return (
-                  <tr key={inv.id} className="border-t border-border hover:bg-secondary/30">
-                    <td className="px-5 py-3 font-mono text-xs">{inv.number}</td>
-                    <td className="px-5 py-3">{inv.title}</td>
-                    <td className="px-5 py-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "MMM d, yyyy") : "—"}</td>
-                    <td className="px-5 py-3 text-right font-semibold">${Number(inv.total).toFixed(2)}</td>
-                    <td className="px-5 py-3"><StatusBadge status={status} /></td>
-                    <td className="px-5 py-3 text-right">
-                      {inv.recipient_id === user?.id && inv.status === "pending" && (
-                        <Button size="sm" onClick={() => markPaid.mutate(inv.id)}>Mark paid</Button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="bg-secondary/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 text-left sm:px-5">Invoice</th>
+                  <th className="px-4 py-3 text-left sm:px-5">Title</th>
+                  <th className="px-4 py-3 text-left sm:px-5">Due</th>
+                  <th className="px-4 py-3 text-right sm:px-5">Amount</th>
+                  <th className="px-4 py-3 text-left sm:px-5">Status</th>
+                  <th className="px-4 py-3 text-right sm:px-5">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.slice(0, 10).map((inv) => {
+                  const overdue = inv.status === "pending" && inv.due_date && new Date(inv.due_date) < new Date();
+                  const status = overdue ? "overdue" : inv.status;
+                  return (
+                    <tr key={inv.id} className="border-t border-border hover:bg-secondary/30">
+                      <td className="px-4 py-3 font-mono text-xs sm:px-5">{inv.number}</td>
+                      <td className="px-4 py-3 sm:px-5">{inv.title}</td>
+                      <td className="px-4 py-3 text-muted-foreground sm:px-5">{inv.due_date ? format(new Date(inv.due_date), "MMM d, yyyy") : "—"}</td>
+                      <td className="px-4 py-3 text-right font-semibold sm:px-5">${Number(inv.total).toFixed(2)}</td>
+                      <td className="px-4 py-3 sm:px-5"><StatusBadge status={status} /></td>
+                      <td className="px-4 py-3 text-right sm:px-5">
+                        {inv.recipient_id === user?.id && inv.status === "pending" && (
+                          <Button size="sm" onClick={() => markPaid.mutate(inv.id)}>Mark paid</Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <div className="p-10 text-center">
             <FileText className="mx-auto h-10 w-10 text-primary" />

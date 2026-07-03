@@ -39,6 +39,8 @@ type Conv = {
   hidden_by_a_at?: string | null;
   hidden_by_b_at?: string | null;
   other?: { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
+  unread?: number;
+  preview?: string | null;
 };
 type ChatOther = { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
 type Message = {

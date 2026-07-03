@@ -76,7 +76,33 @@ function MessagesPage() {
       const otherIds = list.map(c => c.user_a === user!.id ? c.user_b : c.user_a);
       const { data: profs } = await supabase.from("profiles").select("id,display_name,avatar_url,email").in("id", otherIds.length ? otherIds : ["00000000-0000-0000-0000-000000000000"]);
       const map = new Map((profs ?? []).map(p => [p.id, p]));
-      return list.map(c => ({ ...c, other: map.get(c.user_a === user!.id ? c.user_b : c.user_a) ?? null }));
+      // Load unread counts + latest message preview per conversation (single query).
+      const convIds = list.map((c) => c.id);
+      const previews = new Map<string, string>();
+      const unreadMap = new Map<string, number>();
+      if (convIds.length) {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("conversation_id,sender_id,body,attachment_type,read_at,created_at")
+          .in("conversation_id", convIds)
+          .order("created_at", { ascending: false })
+          .limit(400);
+        for (const m of msgs ?? []) {
+          if (!previews.has(m.conversation_id)) {
+            const snippet = m.body?.trim() || (m.attachment_type?.startsWith("image/") ? "📷 Photo" : m.attachment_type?.startsWith("audio/") ? "🎤 Voice note" : m.attachment_type ? "📎 Attachment" : "");
+            previews.set(m.conversation_id, snippet);
+          }
+          if (m.sender_id !== user!.id && !m.read_at) {
+            unreadMap.set(m.conversation_id, (unreadMap.get(m.conversation_id) ?? 0) + 1);
+          }
+        }
+      }
+      return list.map(c => ({
+        ...c,
+        other: map.get(c.user_a === user!.id ? c.user_b : c.user_a) ?? null,
+        unread: unreadMap.get(c.id) ?? 0,
+        preview: previews.get(c.id) ?? null,
+      }));
     },
     enabled: !!user,
   });

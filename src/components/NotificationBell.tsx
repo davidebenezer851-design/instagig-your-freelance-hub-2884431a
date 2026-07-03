@@ -25,6 +25,7 @@ export function NotificationBell() {
       .from("notifications")
       .select("id,type,title,body,link,read,created_at")
       .eq("user_id", user.id)
+      .neq("type", "message")
       .order("created_at", { ascending: false })
       .limit(20)
       .then(({ data }) => { if (active) setItems((data ?? []) as Notif[]); });
@@ -35,6 +36,7 @@ export function NotificationBell() {
       { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
       (payload) => {
         const n = payload.new as Notif;
+        if (n.type === "message") return; // message alerts live on the Messages tab, not the bell
         setItems((p) => [n, ...p].slice(0, 20));
         // In-app toast so users see the alert regardless of which tab they're on
         toast(n.title, {
@@ -77,7 +79,7 @@ export function NotificationBell() {
           <Bell className="h-4 w-4" />
           {unread > 0 && (
             <span className="absolute right-1.5 top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-              {unread > 9 ? "9+" : unread}
+              {unread > 99 ? "99+" : unread}
             </span>
           )}
         </Button>

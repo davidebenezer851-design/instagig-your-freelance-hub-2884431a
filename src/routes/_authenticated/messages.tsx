@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Camera, Check, CheckCheck, File as FileIcon, Image as ImageIcon, Mic, Paperclip, Reply, Send, Smile, X, Loader2, Download, ArrowLeft, Trash2 } from "lucide-react";
+import { Camera, Check, CheckCheck, File as FileIcon, Forward, Image as ImageIcon, Mic, Paperclip, Reply, Send, Smile, X, Loader2, Download, ArrowLeft, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
@@ -20,6 +20,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { VoiceNote } from "@/components/VoiceNote";
 
 const searchSchema = z.object({ c: z.string().uuid().optional() });
 
@@ -37,6 +39,8 @@ type Conv = {
   hidden_by_a_at?: string | null;
   hidden_by_b_at?: string | null;
   other?: { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
+  unread?: number;
+  preview?: string | null;
 };
 type ChatOther = { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
 type Message = {
@@ -72,18 +76,44 @@ function MessagesPage() {
       const otherIds = list.map(c => c.user_a === user!.id ? c.user_b : c.user_a);
       const { data: profs } = await supabase.from("profiles").select("id,display_name,avatar_url,email").in("id", otherIds.length ? otherIds : ["00000000-0000-0000-0000-000000000000"]);
       const map = new Map((profs ?? []).map(p => [p.id, p]));
-      return list.map(c => ({ ...c, other: map.get(c.user_a === user!.id ? c.user_b : c.user_a) ?? null }));
+      // Load unread counts + latest message preview per conversation (single query).
+      const convIds = list.map((c) => c.id);
+      const previews = new Map<string, string>();
+      const unreadMap = new Map<string, number>();
+      if (convIds.length) {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("conversation_id,sender_id,body,attachment_type,read_at,created_at")
+          .in("conversation_id", convIds)
+          .order("created_at", { ascending: false })
+          .limit(400);
+        for (const m of msgs ?? []) {
+          if (!previews.has(m.conversation_id)) {
+            const snippet = m.body?.trim() || (m.attachment_type?.startsWith("image/") ? "📷 Photo" : m.attachment_type?.startsWith("audio/") ? "🎤 Voice note" : m.attachment_type ? "📎 Attachment" : "");
+            previews.set(m.conversation_id, snippet);
+          }
+          if (m.sender_id !== user!.id && !m.read_at) {
+            unreadMap.set(m.conversation_id, (unreadMap.get(m.conversation_id) ?? 0) + 1);
+          }
+        }
+      }
+      return list.map(c => ({
+        ...c,
+        other: map.get(c.user_a === user!.id ? c.user_b : c.user_a) ?? null,
+        unread: unreadMap.get(c.id) ?? 0,
+        preview: previews.get(c.id) ?? null,
+      }));
     },
     enabled: !!user,
   });
 
   useEffect(() => {
     if (!user) return;
-    const channel = supabase.channel(`conversation-list:${user.id}`)
+    const channel = supabase.channel(`conversation-list:${user.id}:${Math.random().toString(36).slice(2, 8)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
         qc.invalidateQueries({ queryKey: ["conversations", user.id] });
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
         qc.invalidateQueries({ queryKey: ["conversations", user.id] });
       })
       .subscribe();
@@ -161,6 +191,9 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
     if (longPressRef.current) clearTimeout(longPressRef.current);
   }
 
+  const unread = conversation.unread ?? 0;
+  const preview = conversation.preview ?? "No messages yet";
+
   return (
     <li>
       <ContextMenu>
@@ -172,14 +205,27 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
             onTouchMove={stopLongPress}
             className={`grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 text-left transition hover:bg-secondary ${active ? "bg-secondary" : ""}`}
           >
-            <UserAvatar userId={conversation.other?.id} name={name} avatarUrl={conversation.other?.avatar_url} size={40} />
+            <UserAvatar userId={conversation.other?.id} name={name} avatarUrl={conversation.other?.avatar_url} size={44} />
             <span className="min-w-0">
-              <span className="block truncate text-sm font-medium">{name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true })}</span>
+              <span className="flex items-center justify-between gap-2">
+                <span className={`truncate text-sm ${unread > 0 ? "font-semibold text-foreground" : "font-medium"}`}>{name}</span>
+                <span className={`shrink-0 text-[10px] ${unread > 0 ? "font-semibold text-green-500" : "text-muted-foreground"}`}>
+                  {formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: false })}
+                </span>
+              </span>
+              <span className={`mt-0.5 block truncate text-xs ${unread > 0 ? "font-medium text-foreground/80" : "text-muted-foreground"}`}>
+                {preview}
+              </span>
             </span>
-            <span className="hidden h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive md:grid" onClick={(e) => { e.stopPropagation(); setConfirmOpen(true); }}>
-              <Trash2 className="h-4 w-4" />
-            </span>
+            {unread > 0 ? (
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold leading-none text-white shadow-sm">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            ) : (
+              <span className="hidden h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive md:grid" onClick={(e) => { e.stopPropagation(); setConfirmOpen(true); }}>
+                <Trash2 className="h-4 w-4" />
+              </span>
+            )}
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
@@ -272,6 +318,7 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [actionSheet, setActionSheet] = useState<Message | null>(null);
   const [recording, setRecording] = useState(false);
   const [recSecs, setRecSecs] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -518,7 +565,12 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
                 key={m.id}
                 onReply={() => setReplyTo(m)}
                 onDelete={mine ? () => { setSelectedMessage(m); setDeleteDialogOpen(true); } : undefined}
-                onSelect={mine ? () => setSelectedMessage(m) : undefined}
+                onForward={async () => {
+                  const text = m.body ?? m.attachment_url ?? "";
+                  try { await navigator.clipboard.writeText(text); toast.success("Copied — paste into any chat to forward"); }
+                  catch { toast.error("Couldn't copy message"); }
+                }}
+                onLongPress={() => setActionSheet(m)}
                 mine={mine}
                 selected={selectedMessage?.id === m.id}
               >
@@ -662,6 +714,47 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Mobile long-press action sheet — WhatsApp-style bottom slide-up */}
+      <Sheet open={!!actionSheet} onOpenChange={(o) => { if (!o) setActionSheet(null); }}>
+        <SheetContent side="bottom" className="rounded-t-2xl border-t p-0">
+          <SheetHeader className="px-4 pb-2 pt-4 text-left">
+            <SheetTitle className="text-sm text-muted-foreground">Message actions</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col divide-y divide-border">
+            <button
+              className="flex items-center gap-3 px-5 py-4 text-left transition active:bg-secondary"
+              onClick={() => { if (actionSheet) setReplyTo(actionSheet); setActionSheet(null); }}
+            >
+              <Reply className="h-5 w-5 text-primary" />
+              <span className="text-base font-medium">Reply</span>
+            </button>
+            <button
+              className="flex items-center gap-3 px-5 py-4 text-left transition active:bg-secondary"
+              onClick={async () => {
+                const m = actionSheet; setActionSheet(null);
+                if (!m) return;
+                const text = m.body ?? m.attachment_url ?? "";
+                try { await navigator.clipboard.writeText(text); toast.success("Copied — paste into any chat to forward"); }
+                catch { toast.error("Couldn't copy message"); }
+              }}
+            >
+              <Forward className="h-5 w-5 text-primary" />
+              <span className="text-base font-medium">Forward</span>
+            </button>
+            {actionSheet?.sender_id === user?.id && (
+              <button
+                className="flex items-center gap-3 px-5 py-4 text-left text-destructive transition active:bg-destructive/10"
+                onClick={() => { setSelectedMessage(actionSheet); setActionSheet(null); setDeleteDialogOpen(true); }}
+              >
+                <Trash2 className="h-5 w-5" />
+                <span className="text-base font-medium">Delete Message</span>
+              </button>
+            )}
+          </div>
+          <div className="h-[env(safe-area-inset-bottom)]" />
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
@@ -670,17 +763,24 @@ function uploadedTempId() {
   return `temp-${crypto.randomUUID()}`;
 }
 
-function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selected }: { children: React.ReactNode; onReply: () => void; onDelete?: () => void; onSelect?: () => void; mine: boolean; selected?: boolean }) {
+function SwipeableMessage({ children, onReply, onDelete, onForward, onLongPress, mine, selected }: { children: React.ReactNode; onReply: () => void; onDelete?: () => void; onForward: () => void; onLongPress: () => void; mine: boolean; selected?: boolean }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef(0);
   const startY = useRef(0);
   const decided = useRef<"h" | "v" | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
 
   function onStart(x: number, y: number) {
     startX.current = x; startY.current = y; decided.current = null; setDragging(true);
-    if (onSelect) longPressRef.current = setTimeout(onSelect, 550);
+    didLongPress.current = false;
+    // 600ms hold threshold for mobile press-and-hold overlay.
+    longPressRef.current = setTimeout(() => {
+      didLongPress.current = true;
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch { /* noop */ } }
+      onLongPress();
+    }, 600);
   }
   function onMove(x: number, y: number) {
     if (!dragging) return;
@@ -689,14 +789,16 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
     if (decided.current === null) {
       if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6) decided.current = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
     }
+    // If the finger moves at all, cancel the long-press timer.
+    if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6) {
+      if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    }
     if (decided.current !== "h") return;
-    if (longPressRef.current) clearTimeout(longPressRef.current);
-    // Swipe right for both sender and receiver to reply.
     const clamped = Math.max(0, Math.min(80, ddx));
     setDx(clamped);
   }
   function onEnd() {
-    if (longPressRef.current) clearTimeout(longPressRef.current);
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
     if (dx > 50) onReply();
     setDx(0); setDragging(false); decided.current = null;
   }
@@ -710,9 +812,7 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
           onTouchStart={(e) => onStart(e.touches[0].clientX, e.touches[0].clientY)}
           onTouchMove={(e) => onMove(e.touches[0].clientX, e.touches[0].clientY)}
           onTouchEnd={onEnd}
-          onPointerDown={(e) => { if (e.pointerType === "mouse") return; onStart(e.clientX, e.clientY); }}
-          onPointerMove={(e) => { if (e.pointerType === "mouse") return; onMove(e.clientX, e.clientY); }}
-          onPointerUp={(e) => { if (e.pointerType === "mouse") return; onEnd(); }}
+          onTouchCancel={onEnd}
         >
           <span
             className="pointer-events-none absolute left-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-primary/20 text-primary"
@@ -724,9 +824,13 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
             style={{ transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform 180ms ease" }}
             className={`flex max-w-full min-w-0 items-center gap-1 ${mine ? "flex-row-reverse justify-end" : "justify-start"}`}
           >
+            {/* Desktop hover actions — WhatsApp Web style */}
             <div className="hidden opacity-0 transition group-hover:opacity-100 md:flex">
               <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={onReply} aria-label="Reply">
                 <Reply className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={onForward} aria-label="Forward">
+                <Forward className="h-4 w-4" />
               </Button>
               {onDelete && (
                 <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full text-destructive hover:text-destructive" onClick={onDelete} aria-label="Delete">
@@ -740,6 +844,7 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={onReply}><Reply className="mr-2 h-4 w-4" /> Reply</ContextMenuItem>
+        <ContextMenuItem onSelect={onForward}><Forward className="mr-2 h-4 w-4" /> Forward</ContextMenuItem>
         {onDelete && <ContextMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</ContextMenuItem>}
       </ContextMenuContent>
     </ContextMenu>
@@ -762,9 +867,7 @@ function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replie
         </a>
       )}
       {m.attachment_url && isAudio && (
-        <div className="flex items-center gap-2 p-2">
-          <audio src={m.attachment_url} controls className="h-9 w-56 max-w-full" />
-        </div>
+        <VoiceNote src={m.attachment_url} mine={mine} />
       )}
       {m.attachment_url && !isImg && !isAudio && (
         <a href={m.attachment_url} target="_blank" rel="noreferrer"

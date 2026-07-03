@@ -565,7 +565,12 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
                 key={m.id}
                 onReply={() => setReplyTo(m)}
                 onDelete={mine ? () => { setSelectedMessage(m); setDeleteDialogOpen(true); } : undefined}
-                onSelect={mine ? () => setSelectedMessage(m) : undefined}
+                onForward={async () => {
+                  const text = m.body ?? m.attachment_url ?? "";
+                  try { await navigator.clipboard.writeText(text); toast.success("Copied — paste into any chat to forward"); }
+                  catch { toast.error("Couldn't copy message"); }
+                }}
+                onLongPress={() => setActionSheet(m)}
                 mine={mine}
                 selected={selectedMessage?.id === m.id}
               >

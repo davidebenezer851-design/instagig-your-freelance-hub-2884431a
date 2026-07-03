@@ -716,17 +716,24 @@ function uploadedTempId() {
   return `temp-${crypto.randomUUID()}`;
 }
 
-function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selected }: { children: React.ReactNode; onReply: () => void; onDelete?: () => void; onSelect?: () => void; mine: boolean; selected?: boolean }) {
+function SwipeableMessage({ children, onReply, onDelete, onForward, onLongPress, mine, selected }: { children: React.ReactNode; onReply: () => void; onDelete?: () => void; onForward: () => void; onLongPress: () => void; mine: boolean; selected?: boolean }) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef(0);
   const startY = useRef(0);
   const decided = useRef<"h" | "v" | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
 
   function onStart(x: number, y: number) {
     startX.current = x; startY.current = y; decided.current = null; setDragging(true);
-    if (onSelect) longPressRef.current = setTimeout(onSelect, 550);
+    didLongPress.current = false;
+    // 600ms hold threshold for mobile press-and-hold overlay.
+    longPressRef.current = setTimeout(() => {
+      didLongPress.current = true;
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch { /* noop */ } }
+      onLongPress();
+    }, 600);
   }
   function onMove(x: number, y: number) {
     if (!dragging) return;
@@ -735,14 +742,16 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
     if (decided.current === null) {
       if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6) decided.current = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
     }
+    // If the finger moves at all, cancel the long-press timer.
+    if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6) {
+      if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+    }
     if (decided.current !== "h") return;
-    if (longPressRef.current) clearTimeout(longPressRef.current);
-    // Swipe right for both sender and receiver to reply.
     const clamped = Math.max(0, Math.min(80, ddx));
     setDx(clamped);
   }
   function onEnd() {
-    if (longPressRef.current) clearTimeout(longPressRef.current);
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
     if (dx > 50) onReply();
     setDx(0); setDragging(false); decided.current = null;
   }
@@ -756,9 +765,7 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
           onTouchStart={(e) => onStart(e.touches[0].clientX, e.touches[0].clientY)}
           onTouchMove={(e) => onMove(e.touches[0].clientX, e.touches[0].clientY)}
           onTouchEnd={onEnd}
-          onPointerDown={(e) => { if (e.pointerType === "mouse") return; onStart(e.clientX, e.clientY); }}
-          onPointerMove={(e) => { if (e.pointerType === "mouse") return; onMove(e.clientX, e.clientY); }}
-          onPointerUp={(e) => { if (e.pointerType === "mouse") return; onEnd(); }}
+          onTouchCancel={onEnd}
         >
           <span
             className="pointer-events-none absolute left-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-primary/20 text-primary"
@@ -770,9 +777,13 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
             style={{ transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform 180ms ease" }}
             className={`flex max-w-full min-w-0 items-center gap-1 ${mine ? "flex-row-reverse justify-end" : "justify-start"}`}
           >
+            {/* Desktop hover actions — WhatsApp Web style */}
             <div className="hidden opacity-0 transition group-hover:opacity-100 md:flex">
               <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={onReply} aria-label="Reply">
                 <Reply className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full" onClick={onForward} aria-label="Forward">
+                <Forward className="h-4 w-4" />
               </Button>
               {onDelete && (
                 <Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-full text-destructive hover:text-destructive" onClick={onDelete} aria-label="Delete">
@@ -786,6 +797,7 @@ function SwipeableMessage({ children, onReply, onDelete, onSelect, mine, selecte
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={onReply}><Reply className="mr-2 h-4 w-4" /> Reply</ContextMenuItem>
+        <ContextMenuItem onSelect={onForward}><Forward className="mr-2 h-4 w-4" /> Forward</ContextMenuItem>
         {onDelete && <ContextMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Delete</ContextMenuItem>}
       </ContextMenuContent>
     </ContextMenu>

@@ -81,8 +81,9 @@ export function Navbar() {
               <WalletChip />
               <NotificationBell />
               <Link to="/messages" data-tour="messages">
-                <Button variant="ghost" size="icon" aria-label="Messages">
+                <Button variant="ghost" size="icon" aria-label="Messages" className="relative">
                   <MessageCircle className="h-4 w-4" />
+                  <MessagesBadge />
                 </Button>
               </Link>
               <Link to="/saved" className="hidden sm:inline-flex">

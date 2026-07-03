@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { NotificationBell } from "@/components/NotificationBell";
 import { UserAvatar } from "@/components/UserAvatar";
 import { WalletChip } from "@/components/WalletChip";
+import { MessagesBadge } from "@/components/MessagesBadge";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,

@@ -318,6 +318,7 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [actionSheet, setActionSheet] = useState<Message | null>(null);
   const [recording, setRecording] = useState(false);
   const [recSecs, setRecSecs] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);

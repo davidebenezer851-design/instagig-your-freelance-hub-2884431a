@@ -714,6 +714,47 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Mobile long-press action sheet — WhatsApp-style bottom slide-up */}
+      <Sheet open={!!actionSheet} onOpenChange={(o) => { if (!o) setActionSheet(null); }}>
+        <SheetContent side="bottom" className="rounded-t-2xl border-t p-0">
+          <SheetHeader className="px-4 pb-2 pt-4 text-left">
+            <SheetTitle className="text-sm text-muted-foreground">Message actions</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col divide-y divide-border">
+            <button
+              className="flex items-center gap-3 px-5 py-4 text-left transition active:bg-secondary"
+              onClick={() => { if (actionSheet) setReplyTo(actionSheet); setActionSheet(null); }}
+            >
+              <Reply className="h-5 w-5 text-primary" />
+              <span className="text-base font-medium">Reply</span>
+            </button>
+            <button
+              className="flex items-center gap-3 px-5 py-4 text-left transition active:bg-secondary"
+              onClick={async () => {
+                const m = actionSheet; setActionSheet(null);
+                if (!m) return;
+                const text = m.body ?? m.attachment_url ?? "";
+                try { await navigator.clipboard.writeText(text); toast.success("Copied — paste into any chat to forward"); }
+                catch { toast.error("Couldn't copy message"); }
+              }}
+            >
+              <Forward className="h-5 w-5 text-primary" />
+              <span className="text-base font-medium">Forward</span>
+            </button>
+            {actionSheet?.sender_id === user?.id && (
+              <button
+                className="flex items-center gap-3 px-5 py-4 text-left text-destructive transition active:bg-destructive/10"
+                onClick={() => { setSelectedMessage(actionSheet); setActionSheet(null); setDeleteDialogOpen(true); }}
+              >
+                <Trash2 className="h-5 w-5" />
+                <span className="text-base font-medium">Delete Message</span>
+              </button>
+            )}
+          </div>
+          <div className="h-[env(safe-area-inset-bottom)]" />
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

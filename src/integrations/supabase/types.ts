@@ -518,6 +518,7 @@ export type Database = {
           headline: string | null
           hourly_rate: number | null
           id: string
+          last_seen_at: string | null
           location: string | null
           plan: string
           rating: number
@@ -536,6 +537,7 @@ export type Database = {
           headline?: string | null
           hourly_rate?: number | null
           id: string
+          last_seen_at?: string | null
           location?: string | null
           plan?: string
           rating?: number
@@ -554,6 +556,7 @@ export type Database = {
           headline?: string | null
           hourly_rate?: number | null
           id?: string
+          last_seen_at?: string | null
           location?: string | null
           plan?: string
           rating?: number

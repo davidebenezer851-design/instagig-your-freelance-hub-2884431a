@@ -42,7 +42,7 @@ type Conv = {
   unread?: number;
   preview?: string | null;
 };
-type ChatOther = { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
+type ChatOther = { id: string; display_name: string | null; avatar_url: string | null; email?: string | null; last_seen_at?: string | null } | null;
 type Message = {
   id: string; sender_id: string; body: string | null; created_at: string;
   attachment_url: string | null; attachment_type: string | null; attachment_name: string | null; attachment_size: number | null;
@@ -55,6 +55,31 @@ function fmtSize(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function presenceLabel(lastSeen: string | null | undefined): string {
+  if (!lastSeen) return "Offline";
+  const d = new Date(lastSeen);
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 90_000) return "Online";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (d >= today) return `last seen today at ${time}`;
+  if (d >= yest) return `last seen yesterday at ${time}`;
+  return `last seen ${d.toLocaleDateString([], { month: "short", day: "numeric" })} at ${time}`;
+}
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
+  const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  if (dd.getTime() === today.getTime()) return "Today";
+  if (dd.getTime() === yest.getTime()) return "Yesterday";
+  if (dd >= weekAgo) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: dd.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
 
 function MessagesPage() {
@@ -139,7 +164,7 @@ function MessagesPage() {
         <aside className={`w-full min-w-0 border-r border-border md:w-80 ${activeId ? "hidden md:block" : "block"}`}>
           <div className="border-b border-border p-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-semibold">Chats</h2>
+              <h2 className="font-display text-lg font-semibold">Messages</h2>
               <NewChatByEmail onOpen={(id) => navigate({ search: { c: id } })} />
             </div>
           </div>
@@ -158,7 +183,7 @@ function MessagesPage() {
               </ul>
             ) : (
               <div className="p-8 text-center text-sm text-muted-foreground">
-                No conversations yet. Message a freelancer or client from a gig or job.
+                No messages yet. Start one from a gig or job.
               </div>
             )}
           </div>
@@ -167,7 +192,7 @@ function MessagesPage() {
         <section className={`w-full min-w-0 flex-1 flex-col ${!activeId ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
           {activeId ? <ChatPanel convId={activeId} onBack={() => navigate({ search: {} })} /> : (
             <div className="grid flex-1 place-items-center p-8 text-center text-sm text-muted-foreground">
-              Pick a conversation to start chatting.
+              Pick a message to start chatting.
             </div>
           )}
         </section>
@@ -177,6 +202,8 @@ function MessagesPage() {
 }
 
 function ConversationListItem({ conversation, active, onOpen, onDelete }: { conversation: Conv; active: boolean; onOpen: () => void; onDelete: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressedRef = useRef(false);
@@ -189,6 +216,16 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
   }
   function stopLongPress() {
     if (longPressRef.current) clearTimeout(longPressRef.current);
+  }
+
+  async function markRead() {
+    if (!user) return;
+    await supabase.from("messages")
+      .update({ read_at: new Date().toISOString() })
+      .eq("conversation_id", conversation.id)
+      .neq("sender_id", user.id)
+      .is("read_at", null);
+    qc.invalidateQueries({ queryKey: ["conversations", user.id] });
   }
 
   const unread = conversation.unread ?? 0;
@@ -209,7 +246,7 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
             <span className="min-w-0">
               <span className="flex items-center justify-between gap-2">
                 <span className={`truncate text-sm ${unread > 0 ? "font-semibold text-foreground" : "font-medium"}`}>{name}</span>
-                <span className={`shrink-0 text-[10px] ${unread > 0 ? "font-semibold text-green-500" : "text-muted-foreground"}`}>
+                <span className={`shrink-0 text-[10px] ${unread > 0 ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   {formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: false })}
                 </span>
               </span>
@@ -218,7 +255,7 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
               </span>
             </span>
             {unread > 0 ? (
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold leading-none text-white shadow-sm">
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold leading-none text-primary-foreground shadow-sm">
                 {unread > 99 ? "99+" : unread}
               </span>
             ) : (
@@ -229,15 +266,20 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          {unread > 0 && (
+            <ContextMenuItem onSelect={markRead}>
+              <CheckCheck className="mr-2 h-4 w-4" /> Mark as read
+            </ContextMenuItem>
+          )}
           <ContextMenuItem onSelect={() => setConfirmOpen(true)} className="text-destructive focus:text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" /> Remove chat
+            <Trash2 className="mr-2 h-4 w-4" /> Remove message
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this chat?</AlertDialogTitle>
+            <AlertDialogTitle>Remove this message?</AlertDialogTitle>
             <AlertDialogDescription>This removes the conversation from your Messages list. It won't delete it for the other person.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -335,14 +377,26 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
   const { data: otherUser } = useQuery({
     queryKey: ["chat-other", convId, user?.id],
     enabled: !!user && !!convId,
+    refetchInterval: 30_000,
     queryFn: async () => {
       const { data: c } = await supabase.from("conversations").select("user_a,user_b").eq("id", convId).maybeSingle();
       if (!c) return null;
       const otherId = c.user_a === user!.id ? c.user_b : c.user_a;
-      const { data: p } = await supabase.from("profiles").select("id,display_name,avatar_url,email").eq("id", otherId).maybeSingle();
+      const { data: p } = await supabase.from("profiles").select("id,display_name,avatar_url,email,last_seen_at").eq("id", otherId).maybeSingle();
       return p as ChatOther;
     },
   });
+
+  // Presence heartbeat — write my last_seen_at every 25s while the chat is open.
+  useEffect(() => {
+    if (!user) return;
+    const beat = () => { supabase.from("profiles").update({ last_seen_at: new Date().toISOString() }).eq("id", user.id).then(() => {}); };
+    beat();
+    const iv = setInterval(beat, 25_000);
+    const onVis = () => { if (document.visibilityState === "visible") beat(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  }, [user]);
 
   useEffect(() => {
     let active = true;
@@ -545,7 +599,7 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
           <UserAvatar userId={otherUser?.id} name={chatName} avatarUrl={otherUser?.avatar_url} size={36} />
           <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{chatName}</div>
-          <div className="text-xs text-muted-foreground">{otherTyping ? "typing…" : "Online"}</div>
+          <div className="text-xs text-muted-foreground">{otherTyping ? <span className="text-primary">typing…</span> : presenceLabel(otherUser?.last_seen_at)}</div>
           </div>
         </div>
         {selectedMessage?.sender_id === user?.id ? (
@@ -557,25 +611,35 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
 
       <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto bg-[var(--gradient-ink)] p-2 sm:p-4" style={{ minHeight: 0 }}>
         <div className="space-y-2">
-          {messages.map((m) => {
+          {messages.map((m, idx) => {
             const mine = m.sender_id === user?.id;
             const replied = m.reply_to ? messages.find((x) => x.id === m.reply_to) : null;
+            const prev = idx > 0 ? messages[idx - 1] : null;
+            const showDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
             return (
-              <SwipeableMessage
-                key={m.id}
-                onReply={() => setReplyTo(m)}
-                onDelete={mine ? () => { setSelectedMessage(m); setDeleteDialogOpen(true); } : undefined}
-                onForward={async () => {
-                  const text = m.body ?? m.attachment_url ?? "";
-                  try { await navigator.clipboard.writeText(text); toast.success("Copied — paste into any chat to forward"); }
-                  catch { toast.error("Couldn't copy message"); }
-                }}
-                onLongPress={() => setActionSheet(m)}
-                mine={mine}
-                selected={selectedMessage?.id === m.id}
-              >
-                <MessageBubble m={m} mine={mine} replied={replied ?? null} />
-              </SwipeableMessage>
+              <div key={m.id}>
+                {showDay && (
+                  <div className="my-3 flex justify-center">
+                    <span className="rounded-full bg-card/80 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground shadow-sm ring-1 ring-border">
+                      {dayLabel(m.created_at)}
+                    </span>
+                  </div>
+                )}
+                <SwipeableMessage
+                  onReply={() => setReplyTo(m)}
+                  onDelete={mine ? () => { setSelectedMessage(m); setDeleteDialogOpen(true); } : undefined}
+                  onForward={async () => {
+                    const text = m.body ?? m.attachment_url ?? "";
+                    try { await navigator.clipboard.writeText(text); toast.success("Copied — paste into any chat to forward"); }
+                    catch { toast.error("Couldn't copy message"); }
+                  }}
+                  onLongPress={() => setActionSheet(m)}
+                  mine={mine}
+                  selected={selectedMessage?.id === m.id}
+                >
+                  <MessageBubble m={m} mine={mine} replied={replied ?? null} />
+                </SwipeableMessage>
+              </div>
             );
           })}
           {messages.length === 0 && <div className="py-12 text-center text-xs text-muted-foreground">Say hi 👋</div>}
@@ -764,50 +828,65 @@ function uploadedTempId() {
 }
 
 function SwipeableMessage({ children, onReply, onDelete, onForward, onLongPress, mine, selected }: { children: React.ReactNode; onReply: () => void; onDelete?: () => void; onForward: () => void; onLongPress: () => void; mine: boolean; selected?: boolean }) {
-  const [dx, setDx] = useState(0);
-  const [dragging, setDragging] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const dxRef = useRef(0);
   const startX = useRef(0);
   const startY = useRef(0);
   const decided = useRef<"h" | "v" | null>(null);
+  const dragging = useRef(false);
+  const rafId = useRef<number | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const didLongPress = useRef(false);
+
+  function apply(dx: number) {
+    const t = trackRef.current, i = iconRef.current;
+    if (t) t.style.transform = `translate3d(${dx}px,0,0)`;
+    if (i) {
+      const s = Math.min(1, dx / 50);
+      i.style.opacity = String(dx > 16 ? s : 0);
+      i.style.transform = `translateY(-50%) scale(${s})`;
+    }
+  }
 
   function onStart(x: number, y: number) {
-    startX.current = x; startY.current = y; decided.current = null; setDragging(true);
-    didLongPress.current = false;
-    // 600ms hold threshold for mobile press-and-hold overlay.
+    startX.current = x; startY.current = y; decided.current = null; dragging.current = true;
+    const t = trackRef.current; if (t) t.style.transition = "none";
     longPressRef.current = setTimeout(() => {
-      didLongPress.current = true;
       if (navigator.vibrate) { try { navigator.vibrate(15); } catch { /* noop */ } }
       onLongPress();
-    }, 600);
+    }, 550);
   }
   function onMove(x: number, y: number) {
-    if (!dragging) return;
+    if (!dragging.current) return;
     const ddx = x - startX.current;
     const ddy = y - startY.current;
     if (decided.current === null) {
       if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6) decided.current = Math.abs(ddx) > Math.abs(ddy) ? "h" : "v";
     }
-    // If the finger moves at all, cancel the long-press timer.
     if (Math.abs(ddx) > 6 || Math.abs(ddy) > 6) {
       if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
     }
     if (decided.current !== "h") return;
     const clamped = Math.max(0, Math.min(80, ddx));
-    setDx(clamped);
+    dxRef.current = clamped;
+    if (rafId.current == null) {
+      rafId.current = requestAnimationFrame(() => { rafId.current = null; apply(dxRef.current); });
+    }
   }
   function onEnd() {
     if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
-    if (dx > 50) onReply();
-    setDx(0); setDragging(false); decided.current = null;
+    const finalDx = dxRef.current;
+    dragging.current = false; decided.current = null;
+    const t = trackRef.current; if (t) t.style.transition = "transform 180ms ease";
+    dxRef.current = 0; apply(0);
+    if (finalDx > 50) onReply();
   }
 
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          className={`swipe-row group relative flex items-end ${mine ? "justify-end" : "justify-start"} ${dragging ? "is-dragging" : ""} ${selected ? "rounded-xl bg-primary/10" : ""}`}
+          className={`swipe-row group relative flex items-end ${mine ? "justify-end" : "justify-start"} ${selected ? "rounded-xl bg-primary/10" : ""}`}
           style={{ touchAction: "pan-y" }}
           onTouchStart={(e) => onStart(e.touches[0].clientX, e.touches[0].clientY)}
           onTouchMove={(e) => onMove(e.touches[0].clientX, e.touches[0].clientY)}
@@ -815,13 +894,15 @@ function SwipeableMessage({ children, onReply, onDelete, onForward, onLongPress,
           onTouchCancel={onEnd}
         >
           <span
-            className="pointer-events-none absolute left-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-primary/20 text-primary"
-            style={{ opacity: dx > 16 ? Math.min(1, dx / 50) : 0, transform: `translateY(-50%) scale(${Math.min(1, dx / 50)})` }}
+            ref={iconRef}
+            className="pointer-events-none absolute left-1 top-1/2 grid h-8 w-8 place-items-center rounded-full bg-primary/20 text-primary"
+            style={{ opacity: 0, transform: "translateY(-50%) scale(0)", willChange: "transform, opacity" }}
           >
             <Reply className="h-4 w-4" />
           </span>
           <div
-            style={{ transform: `translateX(${dx}px)`, transition: dragging ? "none" : "transform 180ms ease" }}
+            ref={trackRef}
+            style={{ willChange: "transform" }}
             className={`flex max-w-full min-w-0 items-center gap-1 ${mine ? "flex-row-reverse justify-end" : "justify-start"}`}
           >
             {/* Desktop hover actions — WhatsApp Web style */}
@@ -885,7 +966,7 @@ function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replie
         <span>{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         {mine && (
           m.id.startsWith("temp-") ? <Check className="h-3 w-3" />
-          : m.read_at ? <CheckCheck className="h-3 w-3 text-sky-400" />
+          : m.read_at ? <CheckCheck className="h-3 w-3 text-primary" />
           : <CheckCheck className="h-3 w-3 opacity-80" />
         )}
       </div>

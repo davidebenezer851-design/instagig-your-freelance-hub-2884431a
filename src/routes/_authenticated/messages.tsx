@@ -42,7 +42,7 @@ type Conv = {
   unread?: number;
   preview?: string | null;
 };
-type ChatOther = { id: string; display_name: string | null; avatar_url: string | null; email?: string | null } | null;
+type ChatOther = { id: string; display_name: string | null; avatar_url: string | null; email?: string | null; last_seen_at?: string | null } | null;
 type Message = {
   id: string; sender_id: string; body: string | null; created_at: string;
   attachment_url: string | null; attachment_type: string | null; attachment_name: string | null; attachment_size: number | null;

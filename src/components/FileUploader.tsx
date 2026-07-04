@@ -45,8 +45,9 @@ export function FileUploader({
       if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} is over 10MB`); continue; }
       const ext = file.name.split(".").pop() ?? "bin";
       const path = `${user.id}/${folder}/${crypto.randomUUID()}.${ext}`;
+      const contentType = file.type || "application/octet-stream";
       const { error } = await supabase.storage.from("post-attachments").upload(path, file, {
-        contentType: file.type, cacheControl: "3600",
+        contentType, cacheControl: "3600", upsert: false,
       });
       if (error) { toast.error(error.message); continue; }
       const { data } = await supabase.storage.from("post-attachments").createSignedUrl(path, 60 * 60 * 24 * 365);

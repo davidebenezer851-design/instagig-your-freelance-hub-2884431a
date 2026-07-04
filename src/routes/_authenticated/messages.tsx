@@ -574,7 +574,7 @@ function ChatPanel({ convId, onBack }: { convId: string; onBack: () => void }) {
           <UserAvatar userId={otherUser?.id} name={chatName} avatarUrl={otherUser?.avatar_url} size={36} />
           <div className="min-w-0">
           <div className="truncate text-sm font-semibold">{chatName}</div>
-          <div className="text-xs text-muted-foreground">{otherTyping ? "typing…" : "Online"}</div>
+          <div className="text-xs text-muted-foreground">{otherTyping ? <span className="text-primary">typing…</span> : presenceLabel(otherUser?.last_seen_at)}</div>
           </div>
         </div>
         {selectedMessage?.sender_id === user?.id ? (

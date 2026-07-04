@@ -167,7 +167,7 @@ function MessagesPage() {
         <section className={`w-full min-w-0 flex-1 flex-col ${!activeId ? "hidden md:flex" : "flex"}`} style={{ minHeight: 0 }}>
           {activeId ? <ChatPanel convId={activeId} onBack={() => navigate({ search: {} })} /> : (
             <div className="grid flex-1 place-items-center p-8 text-center text-sm text-muted-foreground">
-              Pick a conversation to start chatting.
+              Pick a message to start chatting.
             </div>
           )}
         </section>

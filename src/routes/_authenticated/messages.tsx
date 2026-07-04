@@ -57,6 +57,31 @@ function fmtSize(n: number) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function presenceLabel(lastSeen: string | null | undefined): string {
+  if (!lastSeen) return "Offline";
+  const d = new Date(lastSeen);
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 90_000) return "Online";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (d >= today) return `last seen today at ${time}`;
+  if (d >= yest) return `last seen yesterday at ${time}`;
+  return `last seen ${d.toLocaleDateString([], { month: "short", day: "numeric" })} at ${time}`;
+}
+
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const weekAgo = new Date(today); weekAgo.setDate(weekAgo.getDate() - 6);
+  const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  if (dd.getTime() === today.getTime()) return "Today";
+  if (dd.getTime() === yest.getTime()) return "Yesterday";
+  if (dd >= weekAgo) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric", year: dd.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+}
+
 function MessagesPage() {
   const { user } = useAuth();
   const search = Route.useSearch();

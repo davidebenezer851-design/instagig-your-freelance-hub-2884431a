@@ -966,7 +966,7 @@ function MessageBubble({ m, mine, replied }: { m: Message; mine: boolean; replie
         <span>{new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         {mine && (
           m.id.startsWith("temp-") ? <Check className="h-3 w-3" />
-          : m.read_at ? <CheckCheck className="h-3 w-3 text-sky-400" />
+          : m.read_at ? <CheckCheck className="h-3 w-3 text-primary" />
           : <CheckCheck className="h-3 w-3 opacity-80" />
         )}
       </div>

@@ -177,6 +177,8 @@ function MessagesPage() {
 }
 
 function ConversationListItem({ conversation, active, onOpen, onDelete }: { conversation: Conv; active: boolean; onOpen: () => void; onDelete: () => void }) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressedRef = useRef(false);
@@ -189,6 +191,16 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
   }
   function stopLongPress() {
     if (longPressRef.current) clearTimeout(longPressRef.current);
+  }
+
+  async function markRead() {
+    if (!user) return;
+    await supabase.from("messages")
+      .update({ read_at: new Date().toISOString() })
+      .eq("conversation_id", conversation.id)
+      .neq("sender_id", user.id)
+      .is("read_at", null);
+    qc.invalidateQueries({ queryKey: ["conversations", user.id] });
   }
 
   const unread = conversation.unread ?? 0;
@@ -209,7 +221,7 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
             <span className="min-w-0">
               <span className="flex items-center justify-between gap-2">
                 <span className={`truncate text-sm ${unread > 0 ? "font-semibold text-foreground" : "font-medium"}`}>{name}</span>
-                <span className={`shrink-0 text-[10px] ${unread > 0 ? "font-semibold text-green-500" : "text-muted-foreground"}`}>
+                <span className={`shrink-0 text-[10px] ${unread > 0 ? "font-semibold text-primary" : "text-muted-foreground"}`}>
                   {formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: false })}
                 </span>
               </span>
@@ -218,7 +230,7 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
               </span>
             </span>
             {unread > 0 ? (
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-green-500 px-1.5 text-[10px] font-bold leading-none text-white shadow-sm">
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold leading-none text-primary-foreground shadow-sm">
                 {unread > 99 ? "99+" : unread}
               </span>
             ) : (
@@ -229,15 +241,20 @@ function ConversationListItem({ conversation, active, onOpen, onDelete }: { conv
           </button>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          {unread > 0 && (
+            <ContextMenuItem onSelect={markRead}>
+              <CheckCheck className="mr-2 h-4 w-4" /> Mark as read
+            </ContextMenuItem>
+          )}
           <ContextMenuItem onSelect={() => setConfirmOpen(true)} className="text-destructive focus:text-destructive">
-            <Trash2 className="mr-2 h-4 w-4" /> Remove chat
+            <Trash2 className="mr-2 h-4 w-4" /> Remove message
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove this chat?</AlertDialogTitle>
+            <AlertDialogTitle>Remove this message?</AlertDialogTitle>
             <AlertDialogDescription>This removes the conversation from your Messages list. It won't delete it for the other person.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

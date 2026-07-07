@@ -9,7 +9,7 @@ import { Briefcase, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 
-const searchSchema = z.object({ q: z.string().optional() });
+const searchSchema = z.object({ q: z.string().optional(), category: z.string().optional() });
 
 export const Route = createFileRoute("/jobs")({
   validateSearch: searchSchema,
@@ -22,15 +22,24 @@ function BrowseJobs() {
   const navigate = Route.useNavigate();
   const [q, setQ] = useState(search.q ?? "");
 
+  const { data: cats } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
+  });
+
   const { data: jobs, isLoading } = useQuery({
-    queryKey: ["jobs", search.q],
+    queryKey: ["jobs", search.q, search.category],
     queryFn: async () => {
       let query = supabase
         .from("jobs")
-        .select("id,title,description,budget_min,budget_max,is_hourly,experience_level,skills,created_at,proposals_count,likes_count,saves_count,profiles(display_name,location)")
+        .select("id,title,description,budget_min,budget_max,is_hourly,experience_level,skills,created_at,proposals_count,likes_count,saves_count,category_id,profiles(display_name,location)")
         .eq("status", "open")
         .order("created_at", { ascending: false });
       if (search.q) query = query.ilike("title", `%${search.q}%`);
+      if (search.category) {
+        const cat = (await supabase.from("categories").select("id").eq("slug", search.category).maybeSingle()).data;
+        if (cat) query = query.eq("category_id", cat.id);
+      }
       const { data } = await query.limit(40);
       return data ?? [];
     },
@@ -44,13 +53,26 @@ function BrowseJobs() {
           <h1 className="font-display text-4xl font-bold">Find <span className="text-primary">work</span></h1>
           <p className="mt-2 text-muted-foreground">Real jobs from real clients, posted in real time.</p>
           <form
-            onSubmit={(e) => { e.preventDefault(); navigate({ search: { q: q || undefined } }); }}
+            onSubmit={(e) => { e.preventDefault(); navigate({ search: { ...search, q: q || undefined } }); }}
             className="mt-6 flex max-w-2xl items-center gap-2 rounded-full border border-border bg-background p-1.5"
           >
             <Search className="ml-3 h-4 w-4 text-muted-foreground" />
             <input value={q} onChange={(e) => setQ(e.target.value)} className="flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" placeholder="Search jobs…" />
             <Button type="submit" className="rounded-full">Search</Button>
           </form>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate({ search: { ...search, category: undefined } })}
+              className={`rounded-full border px-3 py-1 text-xs ${!search.category ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"}`}
+            >All</button>
+            {cats?.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => navigate({ search: { ...search, category: c.slug } })}
+                className={`rounded-full border px-3 py-1 text-xs ${search.category === c.slug ? "border-primary bg-primary text-primary-foreground" : "border-border hover:border-primary"}`}
+              >{c.name}</button>
+            ))}
+          </div>
         </div>
       </section>
 

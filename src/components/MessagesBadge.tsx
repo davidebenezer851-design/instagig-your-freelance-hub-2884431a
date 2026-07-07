@@ -21,13 +21,16 @@ export function useUnreadMessagesCount() {
         .or(`user_a.eq.${user!.id},user_b.eq.${user!.id}`);
       const ids = (convs ?? []).map((c) => c.id);
       if (ids.length === 0) { if (active) setCount(0); return; }
-      const { count: c } = await supabase
+      // Count DISTINCT conversations that have at least one unread message
+      // (badge = number of threads with unread, not total unread messages).
+      const { data: unread } = await supabase
         .from("messages")
-        .select("id", { count: "exact", head: true })
+        .select("conversation_id")
         .in("conversation_id", ids)
         .neq("sender_id", user!.id)
         .is("read_at", null);
-      if (active) setCount(c ?? 0);
+      const threads = new Set((unread ?? []).map((m) => m.conversation_id));
+      if (active) setCount(threads.size);
     }
 
     load();
